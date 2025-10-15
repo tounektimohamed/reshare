@@ -1,0 +1,76 @@
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "runtime": "nodejs18"
+    }
+  ],
+  "hosting": {
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/click",
+        "function": "clickHandler"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ],
+    "headers": [
+      {
+        "source": "/click",
+        "headers": [
+          {
+            "key": "Access-Control-Allow-Origin",
+            "value": "*"
+          },
+          {
+            "key": "Access-Control-Allow-Methods",
+            "value": "GET, POST, OPTIONS"
+          },
+          {
+            "key": "Access-Control-Allow-Headers",
+            "value": "Content-Type"
+          }
+        ]
+      }
+    ]
+  },
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "scoutapk",
+          "appId": "1:387756086923:android:e57a2c216d67f0f3c5268e",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "scoutapk",
+          "configurations": {
+            "android": "1:387756086923:android:e57a2c216d67f0f3c5268e",
+            "ios": "1:387756086923:ios:f4bf418cbb3032b2c5268e",
+            "macos": "1:387756086923:ios:f4bf418cbb3032b2c5268e",
+            "web": "1:387756086923:web:1e2241c4aa3f6e53c5268e",
+            "windows": "1:387756086923:web:b6f6550c674c9fd6c5268e"
+          }
+        }
+      }
+    }
+  }
+}

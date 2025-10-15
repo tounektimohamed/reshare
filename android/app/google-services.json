@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "387756086923",
+    "project_id": "scoutapk",
+    "storage_bucket": "scoutapk.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:387756086923:android:e57a2c216d67f0f3c5268e",
+        "android_client_info": {
+          "package_name": "com.example.reshare"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "387756086923-g1q2sg67oifslpp5824al8c56oo3rffs.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtQkwJgPY-9JBpXzIdz3ugGc7qdqTp3HM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "387756086923-g1q2sg67oifslpp5824al8c56oo3rffs.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
