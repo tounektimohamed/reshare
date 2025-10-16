@@ -62,7 +62,6 @@ class AuthProvider with ChangeNotifier {
       notifyListeners();
     }
   }
-
   /// 🔥 CONNEXION AVEC EMAIL ET MOT DE PASSE
   Future<bool> login({
     required String email,

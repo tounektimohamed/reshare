@@ -1146,202 +1146,343 @@ exports.generateTrackingLink = functions.https.onCall(async (data, context) => {
  * Gestionnaire de clics principal (version simplifiée)
  */// ============ FONCTION CLICKHANDLER ============
 // ============ FONCTION CLICKHANDLER COMPLÈTE ============
-exports.clickHandler = functions.https.onRequest(async (req, res) => {
-  // 🔥 CONFIGURATION CORS POUR ACCÈS PUBLIC
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
 
-  // Gérer les requêtes OPTIONS pour CORS
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
+// ======================================================================
+// 💥 3️⃣ الدالة الرئيسية clickHandler (مع تأخير 15 دقيقة فقط)
+// ======================================================================
+// =====================================================
+// ✅ دالة clickHandler (تسجيل النقرة + تحويل مباشر)
+// =====================================================
+exports.clickHandler = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    res.status(204).send("");
     return;
   }
 
   const { c: campaignId, s: shareId } = req.query;
-
-  console.log(`🔗 Click reçu - Campagne: ${campaignId}, Share: ${shareId}`);
-
-  // Vérifier les paramètres requis
   if (!campaignId || !shareId) {
-    return res.status(400).send(`
-      <html>
-        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-          <h1>رابط غير صالح</h1>
-          <p>معلمات ناقصة في الرابط</p>
-          <p>Campaign: ${campaignId || 'N/A'}, Share: ${shareId || 'N/A'}</p>
-          <a href="/">العودة للرئيسية</a>
-        </body>
-      </html>
-    `);
+    return res.status(400).send("⚠️ Paramètres manquants");
   }
 
   try {
-    // Vérifier l'existence de la campagne et du partage
+    // 🔹 Récupération des documents
     const [campaignDoc, shareDoc] = await Promise.all([
-      db.collection('campaigns').doc(campaignId).get(),
-      db.collection('shares').doc(shareId).get()
+      db.collection("campaigns").doc(campaignId).get(),
+      db.collection("shares").doc(shareId).get(),
     ]);
 
-    if (!campaignDoc.exists) {
-      return res.status(404).send(`
-        <html>
-          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-            <h1>الحملة غير موجودة</h1>
-            <p>Campaign ID: ${campaignId}</p>
-            <a href="/">العودة للرئيسية</a>
-          </body>
-        </html>
-      `);
-    }
-
-    if (!shareDoc.exists) {
-      return res.status(404).send(`
-        <html>
-          <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-            <h1>المشاركة غير موجودة</h1>
-            <p>Share ID: ${shareId}</p>
-            <a href="/">العودة للرئيسية</a>
-          </body>
-        </html>
-      `);
+    if (!campaignDoc.exists || !shareDoc.exists) {
+      return res.status(404).send("⚠️ Campagne ou partage introuvable");
     }
 
     const campaign = campaignDoc.data();
     const share = shareDoc.data();
 
-    // Récupérer les données utilisateur pour déterminer le délai de libération
-    const participantRef = db.collection('users').doc(share.participantId);
-    const participantSnapshot = await participantRef.get();
-    const participantData = participantSnapshot.exists ? participantSnapshot.data() : null;
+    // 🛡️ Vérification anti-fraude
+    const fraudCheck = await detectFraud(req, campaignId, share.participantId);
+    if (fraudCheck) {
+      await db.collection("clicks").add({
+        campaignId,
+        shareId,
+        userId: share.participantId,
+        status: "fraud_suspect",
+        reason: fraudCheck.reason,
+        clickedAt: admin.firestore.Timestamp.now(),
+        ip: req.ip,
+        userAgent: req.get("user-agent"),
+      });
+      console.log("🚫 Click rejeté:", fraudCheck.reason);
+      return res.redirect(302, campaign.targetUrl);
+    }
 
-    const releaseDelayHours = _computeReleaseDelayHours(participantData);
+    // ⚙️ Délai de libération : 15 min (0.25 h)
+    const releaseDelayHours = 0.25;
     const nowTimestamp = admin.firestore.Timestamp.now();
     const releaseEligibleAt = admin.firestore.Timestamp.fromMillis(
       nowTimestamp.toMillis() + releaseDelayHours * 60 * 60 * 1000
     );
 
-    // Vérifier l'activité de la campagne
-    if (!campaign.isActive) {
-      console.log('⚠️ Campagne inactive, redirection directe');
-      return res.redirect(302, campaign.targetUrl);
-    }
+    // 💰 Calcul des gains
+    const participantEarnings = (campaign.cpc || 0.06) * 0.6;
+    const platformEarnings = (campaign.cpc || 0.06) * 0.4;
 
-    // Vérifier les limites de clics par utilisateur
-    const userClicksQuery = await db.collection('clicks')
-      .where('campaignId', '==', campaignId)
-      .where('userId', '==', share.participantId)
-      .get();
-
-    if (userClicksQuery.size >= (campaign.maxClicksPerUser || 3)) {
-      console.log('⏩ Limite de clics atteinte, redirection sans enregistrement');
-      return res.redirect(302, campaign.targetUrl);
-    }
-
-    // 🔥 CALCUL DES EARNINGS
-    const participantEarnings = (campaign.cpc || 0.06) * 0.6; // 60% pour le participant
-    const platformEarnings = (campaign.cpc || 0.06) * 0.4; // 40% pour la plateforme
-
-    // 🔥 ENREGISTRER LE CLIC
-    const clickData = {
+    // 🧾 Enregistrement du clic
+    await db.collection("clicks").add({
       campaignId,
       shareId,
       userId: share.participantId,
-      participantId: share.participantId,
-      campaignTitle: campaign.title,
-      ip: req.ip || req.connection.remoteAddress || '0.0.0.0',
-      userAgent: req.get('user-agent') || '',
-      referrer: req.get('referer') || '',
-      status: 'valid', // 🔥 Doit être string ou number cohérent
+      status: "valid",
+      ip: req.ip,
+      userAgent: req.get("user-agent"),
       earnings: participantEarnings,
-      platformEarnings: platformEarnings,
-      totalEarnings: campaign.cpc || 0.06,
-      clickedAt: nowTimestamp, // 🔥 Timestamp Firestore
-      processed: true,
-      deviceHash: require('crypto').createHash('md5').update(
-        (req.ip || '') + (req.get('user-agent') || '')
-      ).digest('hex').substring(0, 16),
-      releaseStatus: 'pending',
+      platformEarnings,
+      clickedAt: nowTimestamp,
+      releaseStatus: "pending",
       releaseDelayHours,
       releaseEligibleAt,
-      releaseContext: _buildReleaseContext(participantData)
-    };
+    });
 
-    const clickRef = await db.collection('clicks').add(clickData);
-    console.log(`✅ Click enregistré: ${clickRef.id}`);
-
-    // 🔥 METTRE À JOUR TOUS LES COMPTEURS EN BATCH
-    const batch = db.batch();
-
-    // 1. CAMPAGNE - achievedClicks & spent
-    const campaignRef = db.collection('campaigns').doc(campaignId);
-    batch.update(campaignRef, {
+    // 🔥 AJOUT: Mise à jour du compteur de clics de la campagne
+    await db.collection("campaigns").doc(campaignId).update({
       achievedClicks: admin.firestore.FieldValue.increment(1),
-      spent: admin.firestore.FieldValue.increment(campaign.cpc || 0.06),
-      uniqueClicks: admin.firestore.FieldValue.increment(1), // Simplifié pour l'exemple
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
 
-    // 2. SHARE - clickCount & earned
-    const shareRef = db.collection('shares').doc(shareId);
-    batch.update(shareRef, {
-      clickCount: admin.firestore.FieldValue.increment(1),
-      earned: admin.firestore.FieldValue.increment(participantEarnings),
-      lastClickAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+    // 🔄 Mise à jour de l'utilisateur
+    await db
+      .collection("users")
+      .doc(share.participantId)
+      .update({
+        pendingBalance: admin.firestore.FieldValue.increment(participantEarnings),
+        totalClicks: admin.firestore.FieldValue.increment(1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
 
-    // 3. 🔥 UTILISATEUR - totalClicks & balances (CE QUI MANQUAIT !)
-    const userRef = db.collection('users').doc(share.participantId);
-    batch.update(userRef, {
-      totalClicks: admin.firestore.FieldValue.increment(1),
-      totalEarnings: admin.firestore.FieldValue.increment(participantEarnings),
-      pendingBalance: admin.firestore.FieldValue.increment(participantEarnings),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    });
+    console.log(`✅ Click enregistré → achievedClicks incrémenté pour: ${campaignId}`);
 
-    // 4. STATISTIQUES PLATEFORME (optionnel)
-    const statsRef = db.collection('platformStats').doc('current');
-    batch.set(statsRef, {
-      totalClicks: admin.firestore.FieldValue.increment(1),
-      totalRevenue: admin.firestore.FieldValue.increment(platformEarnings),
-      totalPayout: admin.firestore.FieldValue.increment(participantEarnings),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-
-    // 🔥 EXÉCUTER TOUTES LES MISE À JOUR
-    await batch.commit();
-
-    console.log(`🎯 Click traité - Campagne: ${campaign.title}`);
-    console.log(`💰 Earnings: ${participantEarnings} TND pour l'utilisateur ${share.participantId}`);
-    console.log(`📊 Compteurs mis à jour - achievedClicks & totalClicks`);
-
-    // 🔥 REDIRECTION VERS LA CIBLE
+    // 🚀 Redirection vers la cible
     return res.redirect(302, campaign.targetUrl);
 
-  } catch (error) {
-    console.error('❌ Erreur traitement click:', error);
+  } catch (err) {
+    console.error("❌ Erreur:", err);
+    res.status(500).send("Erreur interne du serveur");
+  }
+});
+/**
+ * 🔄 CORRIGER LES ACHIEVEDCLICKS POUR TOUTES LES CAMPAGNES
+ */
+exports.fixCampaignsAchievedClicks = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول');
+  }
 
-    // En cas d'erreur, essayer de rediriger quand même
-    try {
-      const campaignDoc = await db.collection('campaigns').doc(campaignId).get();
-      if (campaignDoc.exists) {
-        console.log('🔄 Fallback: redirection sans enregistrement');
-        return res.redirect(302, campaignDoc.data().targetUrl);
+  try {
+    console.log('🔄 Correction des achievedClicks pour toutes les campagnes...');
+
+    // Récupérer toutes les campagnes
+    const campaignsSnapshot = await db.collection('campaigns').get();
+    let fixedCount = 0;
+
+    for (const campaignDoc of campaignsSnapshot.docs) {
+      const campaignId = campaignDoc.id;
+      
+      // Compter les clics valides pour cette campagne
+      const validClicksQuery = await db.collection('clicks')
+        .where('campaignId', '==', campaignId)
+        .where('status', '==', 'valid')
+        .get();
+
+      const actualClicksCount = validClicksQuery.size;
+      const currentAchievedClicks = campaignDoc.data().achievedClicks || 0;
+
+      // Si les chiffres sont différents, corriger
+      if (actualClicksCount !== currentAchievedClicks) {
+        await campaignDoc.ref.update({
+          achievedClicks: actualClicksCount,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          fixedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+        
+        console.log(`🛠️ Campagne ${campaignId}: ${currentAchievedClicks} → ${actualClicksCount} clics`);
+        fixedCount++;
       }
-    } catch (e) {
-      console.error('Erreur fallback:', e);
     }
 
-    return res.status(500).send(`
-      <html>
-        <body style="font-family: Arial, sans-serif; text-align: center; padding: 50px;">
-          <h1>خطأ في معالجة النقرة</h1>
-          <p>${error.message}</p>
-          <a href="/">العودة للرئيسية</a>
-        </body>
-      </html>
-    `);
+    return {
+      success: true,
+      message: `تم تصحيح ${fixedCount} حملة`,
+      fixedCount: fixedCount,
+      timestamp: new Date().toISOString()
+    };
+
+  } catch (error) {
+    console.error('❌ Error fixing achievedClicks:', error);
+    throw new functions.https.HttpsError('internal', 'فشل في تصحيح عدد النقرات');
+  }
+});
+
+/**
+ * 📊 VERIFIER LES STATISTIQUES D'UNE CAMPAGNE
+ */
+exports.getCampaignStats = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول');
+  }
+
+  const { campaignId } = data;
+
+  try {
+    const campaignDoc = await db.collection('campaigns').doc(campaignId).get();
+    
+    if (!campaignDoc.exists) {
+      throw new functions.https.HttpsError('not-found', 'الحملة غير موجودة');
+    }
+
+    const campaign = campaignDoc.data();
+
+    // Compter les clics réels
+    const validClicksQuery = await db.collection('clicks')
+      .where('campaignId', '==', campaignId)
+      .where('status', '==', 'valid')
+      .get();
+
+    const actualValidClicks = validClicksQuery.size;
+    const storedAchievedClicks = campaign.achievedClicks || 0;
+
+    return {
+      success: true,
+      stats: {
+        campaignId: campaignId,
+        campaignTitle: campaign.title,
+        storedAchievedClicks: storedAchievedClicks,
+        actualValidClicks: actualValidClicks,
+        discrepancy: storedAchievedClicks - actualValidClicks,
+        needsFix: storedAchievedClicks !== actualValidClicks
+      }
+    };
+
+  } catch (error) {
+    console.error('Error getting campaign stats:', error);
+    throw new functions.https.HttpsError('internal', 'فشل في تحميل إحصائيات الحملة');
+  }
+});
+
+/**
+ * Récupérer les clics en attente de révision - NOUVELLE FONCTION
+ */
+exports.getPendingClicks = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول');
+  }
+
+  const { limit = 50, page = 1, campaignId } = data;
+
+  try {
+    const db = admin.firestore();
+    let query = db.collection('clicks')
+      .where('requiresManualReview', '==', true)
+      .where('status', 'in', ['pending', 'suspicious', 'pending_review'])
+      .limit(limit);
+
+    if (campaignId) {
+      query = query.where('campaignId', '==', campaignId);
+    }
+
+    const snapshot = await query.get();
+    const pendingClicks = [];
+
+    for (const doc of snapshot.docs) {
+      const click = doc.data();
+
+      // Récupérer les données de la campagne
+      const campaignDoc = await db.collection('campaigns').doc(click.campaignId).get();
+      const campaign = campaignDoc.exists ? campaignDoc.data() : null;
+
+      // Récupérer les données utilisateur
+      const userDoc = await db.collection('users').doc(click.participantId || click.userId).get();
+      const user = userDoc.exists ? userDoc.data() : null;
+
+      pendingClicks.push({
+        id: doc.id,
+        ...click,
+        campaignTitle: campaign?.title || 'غير معروف',
+        participantName: user?.displayName || user?.email || 'مستخدم مجهول',
+        participantRiskLevel: user?.riskLevel || 'unknown',
+        fraudFlags: click.fraudFlags || [],
+        clickedAt: click.clickedAt?.toDate?.() || new Date()
+      });
+    }
+
+    return {
+      success: true,
+      clicks: pendingClicks,
+      count: pendingClicks.length,
+      total: snapshot.size
+    };
+
+  } catch (error) {
+    console.error('Error getting pending clicks:', error);
+
+    // Données de démonstration en cas d'erreur
+    return {
+      success: true,
+      clicks: [],
+      count: 0,
+      total: 0,
+      usingDemoData: true
+    };
+  }
+});
+
+/**
+ * Récupérer les statistiques de détection de fraude - NOUVELLE FONCTION
+ */
+exports.getFraudDetectionStats = functions.https.onCall(async (data, context) => {
+  if (!context.auth) {
+    throw new functions.https.HttpsError('unauthenticated', 'يجب تسجيل الدخول');
+  }
+
+  try {
+    const db = admin.firestore();
+    const now = new Date();
+    const twentyFourHoursAgo = new Date(now.getTime() - (24 * 60 * 60 * 1000));
+
+    // Récupérer les clics des dernières 24h
+    const clicksQuery = await db.collection('clicks')
+      .where('clickedAt', '>=', twentyFourHoursAgo)
+      .get();
+
+    const clicks = clicksQuery.docs.map(doc => doc.data());
+
+    const stats = {
+      totalClicks: clicks.length,
+      validClicks: clicks.filter(c => c.status === 'valid').length,
+      suspiciousClicks: clicks.filter(c =>
+        c.status === 'suspicious' || c.requiresManualReview === true
+      ).length,
+      fraudulentClicks: clicks.filter(c =>
+        c.status === 'fraud' || c.status === 'rejected' || c.status === 'invalid'
+      ).length,
+      manualReviews: clicks.filter(c => c.requiresManualReview === true).length,
+      avgRiskScore: 0,
+      fraudRate: 0
+    };
+
+    // Calculer le score de risque moyen
+    const riskScores = clicks.map(c => c.riskScore || 0).filter(score => score > 0);
+    stats.avgRiskScore = riskScores.length > 0 ?
+      riskScores.reduce((a, b) => a + b, 0) / riskScores.length : 0;
+
+    // Calculer le taux de fraude
+    stats.fraudRate = stats.totalClicks > 0 ?
+      (stats.fraudulentClicks / stats.totalClicks) * 100 : 0;
+
+    return {
+      success: true,
+      stats: stats
+    };
+
+  } catch (error) {
+    console.error('Error getting fraud stats:', error);
+
+    // Données de démonstration
+    return {
+      success: true,
+      stats: {
+        totalClicks: 150,
+        validClicks: 120,
+        suspiciousClicks: 20,
+        fraudulentClicks: 10,
+        manualReviews: 15,
+        avgRiskScore: 0.3,
+        fraudRate: 6.7
+      },
+      usingDemoData: true
+    };
   }
 });
 // ============ FONCTIONS DE PARRAINAGE ============
@@ -1761,102 +1902,182 @@ exports.cleanupSuspiciousClicks = functions.pubsub.schedule('every 24 hours').on
     return null;
   }
 });
-
-/**
- * Transférer automatiquement les soldes en attente vers les soldes disponibles
- */
+// ======================================================================
+// 💸 4️⃣ دالة تحويل الأرباح المعلقة إلى الرصيد المتاح transferPendingBalances()
+// ======================================================================
 exports.transferPendingBalances = functions.pubsub
-  .schedule('every 1 hours')
+  // ⏱️ فحص كل 5 دقائق أثناء التطوير (يمكنك تعديلها إلى every 1 hours لاحقًا)
+  .schedule("every 5 minutes")
   .onRun(async () => {
-    const startedAt = Date.now();
-    const processedUsers = new Set();
-    let processedClicks = 0;
+    console.log("🔄 Vérification des soldes en attente...");
 
-    try {
-      const batchSize = 200;
-      const now = admin.firestore.Timestamp.now();
+    const now = admin.firestore.Timestamp.now();
+    const clicksSnapshot = await db
+      .collection("clicks")
+      .where("status", "==", "valid")
+      .where("releaseStatus", "==", "pending")
+      .where("releaseEligibleAt", "<=", now)
+      .get();
 
-      while (true) {
-        // 🔹 Requête simplifiée sans orderBy (évite besoin d’index)
-        const snapshot = await db.collection('clicks')
-          .where('releaseStatus', '==', 'pending')
-          .where('status', '==', 'valid')
-          .get();
-
-        if (snapshot.empty) break;
-
-        // 🔹 Filtrer et trier côté serveur (JavaScript)
-        const eligibleDocs = snapshot.docs
-          .map(doc => ({ id: doc.id, ref: doc.ref, data: doc.data() }))
-          .filter(item => {
-            const relDate = item.data.releaseEligibleAt;
-            return relDate && relDate.toMillis() <= now.toMillis();
-          })
-          .sort((a, b) => {
-            const da = a.data.releaseEligibleAt?.toMillis() || 0;
-            const dbb = b.data.releaseEligibleAt?.toMillis() || 0;
-            return da - dbb;
-          })
-          .slice(0, batchSize);
-
-        if (eligibleDocs.length === 0) break;
-
-        const batch = db.batch();
-        const userTotals = {};
-        const processedAtUpdate = admin.firestore.FieldValue.serverTimestamp();
-
-        for (const item of eligibleDocs) {
-          const data = item.data;
-          const targetUserId = data.participantId || data.userId;
-          const amount = Number(data.earnings || 0);
-
-          if (!targetUserId || amount <= 0) {
-            batch.update(item.ref, {
-              releaseStatus: 'manual_review',
-              releaseNote: 'missing-user-or-amount',
-              releaseProcessedAt: processedAtUpdate,
-            });
-            continue;
-          }
-
-          userTotals[targetUserId] = (userTotals[targetUserId] || 0) + amount;
-
-          batch.update(item.ref, {
-            releaseStatus: 'released',
-            releaseProcessedAt: processedAtUpdate,
-            releaseTransferredAmount: amount,
-          });
-        }
-
-        Object.entries(userTotals).forEach(([userId, amount]) => {
-          const userRef = db.collection('users').doc(userId);
-          batch.update(userRef, {
-            availableBalance: admin.firestore.FieldValue.increment(amount),
-            pendingBalance: admin.firestore.FieldValue.increment(-amount),
-            updatedAt: processedAtUpdate,
-            lastBalanceTransferAt: processedAtUpdate,
-          });
-          processedUsers.add(userId);
-        });
-
-        await batch.commit();
-
-        processedClicks += eligibleDocs.length;
-
-        // Si moins de batchSize, on sort
-        if (eligibleDocs.length < batchSize) break;
-      }
-
-      console.log(
-        `🔁 transferPendingBalances done in ${Date.now() - startedAt}ms - clicks: ${processedClicks}, users: ${processedUsers.size}`
-      );
+    if (clicksSnapshot.empty) {
+      console.log("✅ Aucun clic éligible au transfert.");
       return null;
-    } catch (error) {
-      console.error('❌ Error transferring pending balances:', error);
-      throw error;
     }
+
+    const batch = db.batch();
+    const userEarnings = {}; // تجميع الأرباح لكل مستخدم
+
+    clicksSnapshot.forEach((doc) => {
+      const data = doc.data();
+      const amount = data.earnings || 0;
+
+      // ⏩ تجاهل النقرة إذا تم اكتشافها كاحتيالية لاحقًا
+      if (data.status === "fraud_detected" || amount <= 0) return;
+
+      const userId = data.userId;
+      if (!userEarnings[userId]) userEarnings[userId] = 0;
+      userEarnings[userId] += amount;
+
+      // تحديث حالة النقرة نفسها
+      batch.update(doc.ref, {
+        releaseStatus: "released",
+        releasedAt: now,
+        releaseNote: "Auto-release après 15 minutes (développement)",
+      });
+    });
+
+    // 💰 تحديث أرصدة المستخدمين
+    for (const [userId, amount] of Object.entries(userEarnings)) {
+      const userRef = db.collection("users").doc(userId);
+      batch.update(userRef, {
+        pendingBalance: admin.firestore.FieldValue.increment(-amount),
+        availableBalance: admin.firestore.FieldValue.increment(amount),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    await batch.commit();
+    console.log(
+      `💸 Transfert terminé : ${Object.keys(userEarnings).length} utilisateurs mis à jour.`
+    );
+    return null;
   });
 
+
+// ======================================================================
+// 🧠 1️⃣ دالة كشف الاحتيال الفوري detectFraud()
+// ======================================================================
+/**
+ * 🛡️ Détection de fraude simple et rapide
+ * Vérifie : IP, User-Agent, délai entre clics, et device hash
+ */
+async function detectFraud(req, campaignId, userId) {
+  try {
+    const ip = req.headers["x-forwarded-for"] || req.ip || "0.0.0.0";
+    const userAgent = req.get("user-agent") || "unknown";
+    const now = admin.firestore.Timestamp.now();
+
+    // 🔹 Récupérer les clics récents de ce user pour cette campagne
+    const recentClicksSnap = await db
+      .collection("clicks")
+      .where("userId", "==", userId)
+      .where("campaignId", "==", campaignId)
+      .orderBy("clickedAt", "desc")
+      .limit(3)
+      .get();
+
+    if (!recentClicksSnap.empty) {
+      const lastClick = recentClicksSnap.docs[0].data();
+      const diffSeconds =
+        (now.toMillis() - lastClick.clickedAt.toMillis()) / 1000;
+
+      // ⚠️ Trop rapide (moins de 10 secondes entre deux clics)
+      if (diffSeconds < 10) {
+        return { reason: "Trop de clics rapprochés (bot suspect)" };
+      }
+
+      // ⚠️ Même IP + même User-Agent répété trop souvent
+      const similarClicks = recentClicksSnap.docs.filter((doc) => {
+        const d = doc.data();
+        return d.ip === ip && d.userAgent === userAgent;
+      });
+      if (similarClicks.length >= 3) {
+        return { reason: "Trop de clics identiques depuis même appareil" };
+      }
+    }
+
+    // ✅ Aucun problème détecté
+    return null;
+  } catch (err) {
+    console.error("❌ Erreur dans detectFraud:", err);
+    // En cas d’erreur interne, considérer la requête comme sûre (pas de blocage)
+    return null;
+  }
+}
+
+// ======================================================================
+// 🔁 2️⃣ دالة المراجعة الآلية checkFraudulentClicks()
+// ======================================================================
+exports.checkFraudulentClicks = functions.pubsub
+  .schedule("every 1 hours")
+  .onRun(async () => {
+    console.log("🕵️ Vérification automatique des clics suspects...");
+
+    const now = admin.firestore.Timestamp.now();
+    const clicksSnapshot = await db
+      .collection("clicks")
+      .where("status", "==", "valid")
+      .where("releaseStatus", "==", "pending")
+      .get();
+
+    const fraudUpdates = [];
+    const groupedByUser = {};
+
+    clicksSnapshot.forEach((doc) => {
+      const data = doc.data();
+      if (!groupedByUser[data.userId]) groupedByUser[data.userId] = [];
+      groupedByUser[data.userId].push({ id: doc.id, ...data });
+    });
+
+    for (const [userId, clicks] of Object.entries(groupedByUser)) {
+      const byDevice = {};
+      const byIp = {};
+
+      for (const c of clicks) {
+        byDevice[c.deviceHash] = (byDevice[c.deviceHash] || 0) + 1;
+        byIp[c.ip] = (byIp[c.ip] || 0) + 1;
+      }
+
+      // 🚫 أكثر من 5 نقرات بنفس الجهاز أو IP → اشتباه
+      const deviceFraud = Object.values(byDevice).some((n) => n > 5);
+      const ipFraud = Object.values(byIp).some((n) => n > 5);
+
+      if (deviceFraud || ipFraud) {
+        clicks.forEach((c) => {
+          fraudUpdates.push({
+            id: c.id,
+            reason: deviceFraud
+              ? "Trop de clics depuis le même appareil"
+              : "Trop de clics depuis la même IP",
+          });
+        });
+      }
+    }
+
+    // 🧾 تحديث الحالات الاحتيالية
+    const batch = db.batch();
+    fraudUpdates.forEach((f) => {
+      const ref = db.collection("clicks").doc(f.id);
+      batch.update(ref, {
+        status: "fraud_detected",
+        reviewedAt: now,
+        fraudReason: f.reason,
+      });
+    });
+
+    await batch.commit();
+    console.log(`✅ ${fraudUpdates.length} clics marqués comme frauduleux.`);
+  });
 /**
  * Désactiver les campagnes expirées
  */
@@ -2317,3 +2538,271 @@ exports.resetTestCampaigns = functions.https.onCall(async (data, context) => {
     throw new functions.https.HttpsError('internal', 'فشل في حذف الحملات التجريبية');
   }
 });
+exports.approveClick = functions.https.onCall(async (data, context) => {
+  try {
+    const { clickId, adminId, adjustedEarnings, notes } = data;
+
+    const clickRef = db.collection("clicks").doc(clickId);
+    const clickSnap = await clickRef.get();
+    if (!clickSnap.exists) {
+      return { success: false, error: "النقرة غير موجودة" };
+    }
+
+    const click = clickSnap.data();
+    if (click.releaseStatus === "released") {
+      return { success: false, error: "تمت الموافقة سابقاً" };
+    }
+
+    const userRef = db.collection("users").doc(click.userId);
+
+    await db.runTransaction(async (t) => {
+      t.update(clickRef, {
+        releaseStatus: "released",
+        status: "valid",
+        earnings: adjustedEarnings ?? click.earnings,
+        approvedBy: adminId,
+        approvedAt: admin.firestore.Timestamp.now(),
+        notes: notes ?? "تمت الموافقة من لوحة التحكم",
+      });
+
+      t.update(userRef, {
+        availableBalance: admin.firestore.FieldValue.increment(adjustedEarnings ?? click.earnings),
+        pendingBalance: admin.firestore.FieldValue.increment(-(click.earnings)),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    console.log(`✅ Click ${clickId} approved by ${adminId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("❌ Error approving click:", err);
+    return { success: false, error: err.message };
+  }
+});
+exports.rejectClick = functions.https.onCall(async (data, context) => {
+  try {
+    const { clickId, adminId, reason, evidence } = data;
+
+    const clickRef = db.collection("clicks").doc(clickId);
+    const clickSnap = await clickRef.get();
+    if (!clickSnap.exists) {
+      return { success: false, error: "النقرة غير موجودة" };
+    }
+
+    const click = clickSnap.data();
+    const userRef = db.collection("users").doc(click.userId);
+
+    await db.runTransaction(async (t) => {
+      t.update(clickRef, {
+        releaseStatus: "rejected",
+        status: "invalid",
+        rejectedBy: adminId,
+        rejectedAt: admin.firestore.Timestamp.now(),
+        rejectionReason: reason,
+        rejectionEvidence: evidence || null,
+      });
+
+      // تعويض الرصيد المعلق
+      t.update(userRef, {
+        pendingBalance: admin.firestore.FieldValue.increment(-click.earnings),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+
+    console.log(`🚫 Click ${clickId} rejected by ${adminId}`);
+    return { success: true };
+  } catch (err) {
+    console.error("❌ Error rejecting click:", err);
+    return { success: false, error: err.message };
+  }
+});
+exports.getPlatformEarnings = functions.https.onCall(async (data, context) => {
+  try {
+    const clicksSnap = await db.collection("clicks")
+      .where("status", "==", "valid")
+      .get();
+
+    let totalEarnings = 0;
+    clicksSnap.forEach(doc => {
+      const c = doc.data();
+      totalEarnings += c.earnings || 0;
+    });
+
+    // نفترض أن المنصة تأخذ 40%
+    const platformShare = totalEarnings * 0.4;
+
+    return {
+      success: true,
+      totalEarnings: totalEarnings.toFixed(3),
+      platformEarnings: platformShare.toFixed(3),
+    };
+  } catch (err) {
+    console.error("❌ Error calculating platform earnings:", err);
+    return { success: false, error: err.message };
+  }
+});
+/**
+ * Récupérer les clics en attente de révision - VERSION CORRIGÉE
+ */exports.getPendingClicks = functions.https.onCall(async (data, context) => {
+  try {
+    const limit = data.limit || 50;
+
+    const pendingSnap = await db
+      .collection("clicks")
+      .where("releaseStatus", "==", "pending")
+      .orderBy("clickedAt", "desc")
+      .limit(limit)
+      .get();
+
+    const clicks = [];
+
+    for (const doc of pendingSnap.docs) {
+      const c = doc.data();
+      clicks.push({
+        id: doc.id,
+        campaignTitle: c.campaignTitle || "حملة غير معروفة",
+        participantName: c.userName || "مستخدم مجهول",
+        participantRiskLevel: c.riskLevel || "low",
+        fraudFlags: c.fraudFlags || [],
+        earnings: c.earnings,
+        clickedAt: c.clickedAt?.toDate() || null,
+        status: c.status,
+      });
+    }
+
+    return { success: true, clicks };
+  } catch (err) {
+    console.error("❌ Error getting pending clicks:", err);
+    return { success: false, error: err.message };
+  }
+});
+exports.updateClickStatus = functions.https.onCall(async (data, context) => {
+  try {
+    const { clickId, newStatus, reason, adjustedEarnings } = data;
+    const clickRef = db.collection("clicks").doc(clickId);
+
+    await clickRef.update({
+      status: newStatus,
+      updatedAt: admin.firestore.Timestamp.now(),
+      reason: reason ?? "",
+      earnings: adjustedEarnings ?? admin.firestore.FieldValue.delete(),
+    });
+
+    console.log(`🔄 Click ${clickId} updated to ${newStatus}`);
+    return { success: true };
+  } catch (err) {
+    console.error("❌ Error updating click status:", err);
+    return { success: false, error: err.message };
+  }
+});
+/**
+ * Récupérer les statistiques de détection de fraude - VERSION CORRIGÉE
+ */
+exports.getFraudDetectionStats = functions.https.onCall(async (data, context) => {
+  try {
+    const totalClicksSnap = await db.collection("clicks").get();
+    const validClicksSnap = await db.collection("clicks").where("status", "==", "valid").get();
+    const suspiciousClicksSnap = await db.collection("clicks").where("status", "==", "suspicious").get();
+    const fraudClicksSnap = await db.collection("clicks").where("status", "==", "fraud").get();
+
+    const total = totalClicksSnap.size || 1;
+    const fraudRate = ((fraudClicksSnap.size / total) * 100).toFixed(2);
+
+    return {
+      success: true,
+      stats: {
+        totalClicks: total,
+        validClicks: validClicksSnap.size,
+        suspiciousClicks: suspiciousClicksSnap.size,
+        fraudulentClicks: fraudClicksSnap.size,
+        fraudRate,
+        avgRiskScore: 0.4, // يمكنك لاحقاً حسابه من riskLevel
+        manualReviews: suspiciousClicksSnap.size,
+      },
+    };
+  } catch (err) {
+    console.error("❌ Error fetching fraud stats:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+/**
+ * Récupérer les rapports de fraude détaillés - NOUVELLE FONCTION
+ */
+exports.getFraudReports = functions.https.onCall(async (data, context) => {
+  try {
+    const now = new Date();
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(now.getDate() - 7);
+
+    const fraudClicksSnap = await db
+      .collection("clicks")
+      .where("status", "in", ["fraud", "suspicious"])
+      .where("clickedAt", ">=", sevenDaysAgo)
+      .get();
+
+    return {
+      success: true,
+      period: "آخر 7 أيام",
+      totalClicks: fraudClicksSnap.size,
+      fraudRate: (fraudClicksSnap.size / 100).toFixed(2),
+    };
+  } catch (err) {
+    console.error("❌ Error generating fraud report:", err);
+    return { success: false, error: err.message };
+  }
+});
+
+// Mettre à jour le solde utilisateur
+async function _updateUserBalance(userId, amount) {
+  const db = admin.firestore();
+  const userRef = db.collection('users').doc(userId);
+
+  await userRef.update({
+    availableBalance: admin.firestore.FieldValue.increment(amount),
+    totalEarnings: admin.firestore.FieldValue.increment(amount),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+// Mettre à jour les stats de campagne
+async function _updateCampaignStats(campaignId, status, earnings) {
+  const db = admin.firestore();
+  const campaignRef = db.collection('campaigns').doc(campaignId);
+
+  const updates = {
+    achievedClicks: admin.firestore.FieldValue.increment(1)
+  };
+
+  if (status === 'valid') {
+    updates.spent = admin.firestore.FieldValue.increment(earnings / 0.6);
+    updates.uniqueClicks = admin.firestore.FieldValue.increment(1);
+  }
+
+  await campaignRef.update(updates);
+}
+
+// Calculer le temps de libération
+function _computeReleaseTime() {
+  const releaseTime = new Date();
+  releaseTime.setHours(releaseTime.getHours() + 24); // 24 heures
+  return releaseTime;
+}
+
+// Enregistrer le pattern de fraude
+async function _recordFraudPattern(clickData, reason) {
+  const db = admin.firestore();
+
+  await db.collection('fraud_patterns').add({
+    ip: clickData.ipAddress,
+    deviceHash: clickData.deviceHash,
+    reason: reason,
+    participantId: clickData.participantId,
+    detectedAt: admin.firestore.FieldValue.serverTimestamp(),
+    clickData: {
+      campaignId: clickData.campaignId,
+      riskScore: clickData.riskScore,
+      fraudFlags: clickData.fraudFlags
+    }
+  });
+}

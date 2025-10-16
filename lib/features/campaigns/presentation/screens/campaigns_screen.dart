@@ -26,6 +26,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
       final provider = Provider.of<CampaignProvider>(context, listen: false);
       provider.loadCampaigns();
     });
+    
   }
 
   @override

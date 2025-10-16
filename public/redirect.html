@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <title>جارٍ تحويلك...</title>
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get("url");
+    if (target) {
+      setTimeout(() => {
+        window.location.href = target;
+      }, 800); // 0.8 ثانية لتجربة انتقال ناعمة
+    } else {
+      document.body.innerHTML = "<h3>❌ لا يوجد رابط للوجهة</h3>";
+    }
+  </script>
+</head>
+<body style="font-family: sans-serif; text-align:center; margin-top:50px;">
+  <h2>🔄 يتم الآن تحويلك إلى الصفحة المقصودة...</h2>
+</body>
+</html>

@@ -15,7 +15,7 @@ import 'features/referrals/presentation/providers/referral_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+ 
   await _setupSystemConfig();
   await _initializeFirebase();
   

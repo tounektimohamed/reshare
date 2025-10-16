@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:reshare/data/models/user_model.dart';
 import 'package:reshare/features/campaigns/presentation/screens/DashboardEntreprise.dart';
 import 'package:reshare/features/campaigns/presentation/screens/campaigns_screen.dart';
+import 'package:reshare/features/dashboard/presentation/screens/admin_home_screen.dart';
 import 'package:reshare/features/dashboard/presentation/screens/home_screen.dart';
 import 'package:reshare/features/dashboard/presentation/screens/profile_screen.dart';
 import 'package:reshare/features/earnings/presentation/screens/earnings_screen.dart';
@@ -53,7 +54,7 @@ List<Widget> _getScreensForUserType(UserType? userType) {
       ];
     case UserType.admin:
       return [
-        const HomeScreen(),
+        const ADHomeScreen(),
         const CampaignsScreen(),
         const EarningsScreen(),
         const ProfileScreen(),

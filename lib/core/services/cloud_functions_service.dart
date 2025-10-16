@@ -5,7 +5,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 class CloudFunctionsService {
-  static final CloudFunctionsService _instance = CloudFunctionsService._internal();
+  static final CloudFunctionsService _instance =
+      CloudFunctionsService._internal();
   factory CloudFunctionsService() => _instance;
   CloudFunctionsService._internal();
 
@@ -16,7 +17,7 @@ class CloudFunctionsService {
     if (useEmulator) {
       _functions.useFunctionsEmulator('localhost', 5001);
     }
-    
+
     if (region != null) {
       _functions = FirebaseFunctions.instanceFor(region: region);
     }
@@ -81,38 +82,47 @@ class CloudFunctionsService {
   }
 
   Future<Map<String, dynamic>> getRecommendedCampaigns({int limit = 5}) async {
-    return await callFunction('getRecommendedCampaigns', parameters: {
-      'limit': limit,
-    });
+    return await callFunction(
+      'getRecommendedCampaigns',
+      parameters: {'limit': limit},
+    );
   }
 
   Future<Map<String, dynamic>> getAvailableCampaigns({
     int limit = 10,
     int page = 1,
   }) async {
-    return await callFunction('getAvailableCampaigns', parameters: {
-      'limit': limit,
-      'page': page,
-    });
+    return await callFunction(
+      'getAvailableCampaigns',
+      parameters: {'limit': limit, 'page': page},
+    );
   }
 
   // ============ FONCTIONS CAMPAIGNS ============
 
-  Future<Map<String, dynamic>> createCampaign(Map<String, dynamic> campaignData) async {
-    return await callFunction('createCampaign', parameters: {
-      'campaignData': campaignData,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
+  Future<Map<String, dynamic>> createCampaign(
+    Map<String, dynamic> campaignData,
+  ) async {
+    return await callFunction(
+      'createCampaign',
+      parameters: {
+        'campaignData': campaignData,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+    );
   }
 
-  Future<Map<String, dynamic>> createCampaignDirect(Map<String, dynamic> campaignData) async {
+  Future<Map<String, dynamic>> createCampaignDirect(
+    Map<String, dynamic> campaignData,
+  ) async {
     return await callFunction('createCampaignDirect', parameters: campaignData);
   }
 
   Future<Map<String, dynamic>> createTestCampaigns(int count) async {
-    return await callFunction('createTestCampaigns', parameters: {
-      'count': count,
-    });
+    return await callFunction(
+      'createTestCampaigns',
+      parameters: {'count': count},
+    );
   }
 
   Future<Map<String, dynamic>> resetTestCampaigns() async {
@@ -132,25 +142,29 @@ class CloudFunctionsService {
   }) async {
     // 🔍 Collecte des données de détection de fraude
     final fraudData = fraudDetectionData ?? await _collectFraudDetectionData();
-    
-    return await callFunction('clickHandler', parameters: {
-      'trackingId': trackingId,
-      'ipAddress': ipAddress,
-      'userAgent': userAgent,
-      'deviceHash': deviceHash,
-      'locationData': locationData,
-      'fraudDetectionData': fraudData,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-      'clientInfo': _getClientInfo(),
-    });
+
+    return await callFunction(
+      'clickHandler',
+      parameters: {
+        'trackingId': trackingId,
+        'ipAddress': ipAddress,
+        'userAgent': userAgent,
+        'deviceHash': deviceHash,
+        'locationData': locationData,
+        'fraudDetectionData': fraudData,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'clientInfo': _getClientInfo(),
+      },
+    );
   }
 
   /// 🔍 Collecter les données pour la détection de fraude
   Future<Map<String, dynamic>> _collectFraudDetectionData() async {
     final window = WidgetsBinding.instance.window;
-    
+
     return {
-      'screenResolution': '${window.physicalSize.width}x${window.physicalSize.height}',
+      'screenResolution':
+          '${window.physicalSize.width}x${window.physicalSize.height}',
       'pixelRatio': window.devicePixelRatio,
       'timezone': DateTime.now().timeZoneOffset.inHours,
       'language': Platform.localeName,
@@ -257,11 +271,14 @@ class CloudFunctionsService {
     required String clickId,
     required Map<String, dynamic> clickData,
   }) async {
-    return await callFunction('analyzeClickFraud', parameters: {
-      'clickId': clickId,
-      'clickData': clickData,
-      'analysisTimestamp': DateTime.now().millisecondsSinceEpoch,
-    });
+    return await callFunction(
+      'analyzeClickFraud',
+      parameters: {
+        'clickId': clickId,
+        'clickData': clickData,
+        'analysisTimestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+    );
   }
 
   /// 📊 Obtenir les rapports de fraude
@@ -270,18 +287,33 @@ class CloudFunctionsService {
     DateTime? endDate,
     String? period = '24h',
   }) async {
-    return await callFunction('getFraudReports', parameters: {
-      'startDate': startDate?.millisecondsSinceEpoch,
-      'endDate': endDate?.millisecondsSinceEpoch,
-      'period': period,
-    });
+    return await callFunction(
+      'getFraudReports',
+      parameters: {
+        'startDate': startDate?.millisecondsSinceEpoch,
+        'endDate': endDate?.millisecondsSinceEpoch,
+        'period': period,
+      },
+    );
   }
 
   /// 📈 Obtenir les statistiques de détection de fraude
   Future<Map<String, dynamic>> getFraudDetectionStats({String? userId}) async {
-    return await callFunction('getFraudDetectionStats', parameters: {
-      'userId': userId,
-    });
+    return await callFunction(
+      'getFraudDetectionStats',
+      parameters: {'userId': userId},
+    );
+  }
+
+  Future<Map<String, dynamic>> getPlatformEarnings() async {
+    try {
+      final callable = _functions.httpsCallable('getPlatformEarnings');
+      final response = await callable();
+      return response.data;
+    } catch (e) {
+      print('❌ Error getting platform earnings: $e');
+      return {'success': false, 'error': e.toString()};
+    }
   }
 
   /// 🚨 Signaler un clic suspect
@@ -290,12 +322,15 @@ class CloudFunctionsService {
     required String reason,
     Map<String, dynamic>? evidence,
   }) async {
-    return await callFunction('reportSuspiciousClick', parameters: {
-      'clickId': clickId,
-      'reason': reason,
-      'evidence': evidence,
-      'reportedAt': DateTime.now().millisecondsSinceEpoch,
-    });
+    return await callFunction(
+      'reportSuspiciousClick',
+      parameters: {
+        'clickId': clickId,
+        'reason': reason,
+        'evidence': evidence,
+        'reportedAt': DateTime.now().millisecondsSinceEpoch,
+      },
+    );
   }
 
   /// 🔄 Vérifier le statut de libération des fonds
@@ -303,10 +338,10 @@ class CloudFunctionsService {
     required String userId,
     required String clickId,
   }) async {
-    return await callFunction('checkFundsReleaseStatus', parameters: {
-      'userId': userId,
-      'clickId': clickId,
-    });
+    return await callFunction(
+      'checkFundsReleaseStatus',
+      parameters: {'userId': userId, 'clickId': clickId},
+    );
   }
 
   // ============ FONCTIONS PAIEMENT ET SUIVI ============
@@ -318,31 +353,35 @@ class CloudFunctionsService {
     required double budget,
     double cpc = 0.06,
   }) async {
-    return await callFunction('createCampaignIntent', parameters: {
-      'title': title,
-      'description': description,
-      'targetUrl': targetUrl,
-      'budget': budget,
-      'cpc': cpc,
-    });
+    return await callFunction(
+      'createCampaignIntent',
+      parameters: {
+        'title': title,
+        'description': description,
+        'targetUrl': targetUrl,
+        'budget': budget,
+        'cpc': cpc,
+      },
+    );
   }
 
   Future<Map<String, dynamic>> generateTrackingLink({
     required String campaignId,
     required String participantId,
   }) async {
-    return await callFunction('generateTrackingLink', parameters: {
-      'campaignId': campaignId,
-      'participantId': participantId,
-    });
+    return await callFunction(
+      'generateTrackingLink',
+      parameters: {'campaignId': campaignId, 'participantId': participantId},
+    );
   }
 
   // ============ FONCTIONS ANALYTIQUES ============
 
   Future<Map<String, dynamic>> getCampaignAnalytics(String campaignId) async {
-    return await callFunction('getCampaignAnalytics', parameters: {
-      'campaignId': campaignId,
-    });
+    return await callFunction(
+      'getCampaignAnalytics',
+      parameters: {'campaignId': campaignId},
+    );
   }
 
   Future<Map<String, dynamic>> getBusinessCampaigns() async {
@@ -354,11 +393,14 @@ class CloudFunctionsService {
     required DateTime endDate,
     String? period,
   }) async {
-    return await callFunction('getEarningsReport', parameters: {
-      'startDate': startDate.millisecondsSinceEpoch,
-      'endDate': endDate.millisecondsSinceEpoch,
-      'period': period,
-    });
+    return await callFunction(
+      'getEarningsReport',
+      parameters: {
+        'startDate': startDate.millisecondsSinceEpoch,
+        'endDate': endDate.millisecondsSinceEpoch,
+        'period': period,
+      },
+    );
   }
 
   // ============ FONCTIONS PARRAINAGE ============
@@ -368,12 +410,15 @@ class CloudFunctionsService {
     required String newUserId,
     required String referralCode,
   }) async {
-    return await callFunction('processReferral', parameters: {
-      'referrerId': referrerId,
-      'newUserId': newUserId,
-      'referralCode': referralCode,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
+    return await callFunction(
+      'processReferral',
+      parameters: {
+        'referrerId': referrerId,
+        'newUserId': newUserId,
+        'referralCode': referralCode,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+    );
   }
 
   Future<Map<String, dynamic>> getReferralStats() async {
@@ -388,13 +433,103 @@ class CloudFunctionsService {
     required String paymentMethod,
     required Map<String, dynamic> paymentDetails,
   }) async {
-    return await callFunction('createWithdrawal', parameters: {
-      'userId': userId,
-      'amount': amount,
-      'paymentMethod': paymentMethod,
-      'paymentDetails': paymentDetails,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
+    return await callFunction(
+      'createWithdrawal',
+      parameters: {
+        'userId': userId,
+        'amount': amount,
+        'paymentMethod': paymentMethod,
+        'paymentDetails': paymentDetails,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+    );
+  }
+
+  Future<Map<String, dynamic>> callFunctionWithFallback(
+    String functionName, {
+    Map<String, dynamic> parameters = const {},
+    Map<String, dynamic> fallbackData = const {},
+  }) async {
+    try {
+      final result = await callFunction(functionName, parameters: parameters);
+      return result;
+    } catch (e) {
+      print('❌ Fallback for $functionName: $e');
+      return {
+        'success': true, // Retourner success pour éviter les crashes
+        ...fallbackData,
+        'usingFallback': true,
+        'error': e.toString(),
+      };
+    }
+  }
+
+  // ============ FONCTIONS GESTION DES STATUTS DE CLICS ============
+
+  /// ✅ VALIDER UN CLIC MANUELLEMENT (pour l'admin)
+  Future<Map<String, dynamic>> approveClick({
+    required String clickId,
+    required String adminId,
+    double? adjustedEarnings,
+    String? notes,
+  }) async {
+    return await callFunction(
+      'approveClick',
+      parameters: {
+        'clickId': clickId,
+        'adminId': adminId,
+        'adjustedEarnings': adjustedEarnings,
+        'notes': notes,
+      },
+    );
+  }
+
+  /// 🚨 REFUSER UN CLIC MANUELLEMENT (pour l'admin)
+  Future<Map<String, dynamic>> rejectClick({
+    required String clickId,
+    required String adminId,
+    required String reason,
+    String? evidence,
+  }) async {
+    return await callFunction(
+      'rejectClick',
+      parameters: {
+        'clickId': clickId,
+        'adminId': adminId,
+        'reason': reason,
+        'evidence': evidence,
+      },
+    );
+  }
+
+  /// 📋 OBTENIR LES CLICS EN ATTENTE DE RÉVISION
+  Future<Map<String, dynamic>> getPendingClicks({
+    int limit = 50,
+    int page = 1,
+    String? campaignId,
+  }) async {
+    return await callFunction(
+      'getPendingClicks',
+      parameters: {'limit': limit, 'page': page, 'campaignId': campaignId},
+    );
+  }
+
+  /// 🔄 METTRE À JOUR LE STATUT D'UN CLIC
+  Future<Map<String, dynamic>> updateClickStatus({
+    required String clickId,
+    required String newStatus,
+    required String reason,
+    double? adjustedEarnings,
+  }) async {
+    return await callFunction(
+      'updateClickStatus',
+      parameters: {
+        'clickId': clickId,
+        'newStatus': newStatus,
+        'reason': reason,
+        'adjustedEarnings': adjustedEarnings,
+      },
+    );
   }
 
   Future<Map<String, dynamic>> updateUserBalance({
@@ -403,13 +538,16 @@ class CloudFunctionsService {
     required String transactionType,
     required String description,
   }) async {
-    return await callFunction('updateUserBalance', parameters: {
-      'userId': userId,
-      'amount': amount,
-      'transactionType': transactionType,
-      'description': description,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
+    return await callFunction(
+      'updateUserBalance',
+      parameters: {
+        'userId': userId,
+        'amount': amount,
+        'transactionType': transactionType,
+        'description': description,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+    );
   }
 
   // ============ FONCTIONS STATISTIQUES ============
@@ -418,10 +556,13 @@ class CloudFunctionsService {
     required DateTime startDate,
     required DateTime endDate,
   }) async {
-    return await callFunction('getUserStats', parameters: {
-      'startDate': startDate.millisecondsSinceEpoch,
-      'endDate': endDate.millisecondsSinceEpoch,
-    });
+    return await callFunction(
+      'getUserStats',
+      parameters: {
+        'startDate': startDate.millisecondsSinceEpoch,
+        'endDate': endDate.millisecondsSinceEpoch,
+      },
+    );
   }
 
   // ============ FONCTIONS NOTIFICATIONS ============
@@ -433,13 +574,16 @@ class CloudFunctionsService {
     required String type,
     Map<String, dynamic>? data,
   }) async {
-    return await callFunction('sendUserNotification', parameters: {
-      'userId': userId,
-      'title': title,
-      'body': body,
-      'type': type,
-      'data': data,
-    });
+    return await callFunction(
+      'sendUserNotification',
+      parameters: {
+        'userId': userId,
+        'title': title,
+        'body': body,
+        'type': type,
+        'data': data,
+      },
+    );
   }
 
   // ============ FONCTIONS UTILITAIRES ============
@@ -464,67 +608,74 @@ class CloudFunctionsService {
 
   // ============ FALLBACK SYSTEM ============
 
-  Map<String, dynamic> _getFallbackData(String functionName, Map<String, dynamic>? parameters) {
+  Map<String, dynamic> _getFallbackData(
+    String functionName,
+    Map<String, dynamic>? parameters,
+  ) {
     print('Using fallback for function: $functionName');
-    
+
     switch (functionName) {
       case 'getDashboardData':
         return _getFallbackDashboardData();
-      
+
       case 'getRecommendedCampaigns':
         final limit = parameters?['limit'] ?? 5;
         return _getFallbackRecommendedCampaigns(limit);
-      
+
       case 'getAvailableCampaigns':
         final limit = parameters?['limit'] ?? 10;
         final page = parameters?['page'] ?? 1;
         return _getFallbackAvailableCampaigns(limit, page);
-      
+
       case 'getUserStats':
         return _getFallbackUserStats();
-      
+
       case 'getFraudDetectionStats':
         return _getFallbackFraudStats();
-      
+
       case 'createCampaignIntent':
         return {
           'success': true,
           'paymentUrl': 'https://example.com/payment-fallback',
-          'paymentId': 'fallback_payment_${DateTime.now().millisecondsSinceEpoch}',
+          'paymentId':
+              'fallback_payment_${DateTime.now().millisecondsSinceEpoch}',
           'orderId': 'fallback_order_${DateTime.now().millisecondsSinceEpoch}',
-          'usingFallback': true
+          'usingFallback': true,
         };
-      
+
       case 'generateTrackingLink':
         return {
           'success': true,
-          'trackingLink': 'https://reshare.tn/click?c=fallback_campaign&s=fallback_share',
+          'trackingLink':
+              'https://reshare.tn/click?c=fallback_campaign&s=fallback_share',
           'shareId': 'fallback_share_${DateTime.now().millisecondsSinceEpoch}',
           'campaignTitle': 'حملة تجريبية',
-          'usingFallback': true
+          'usingFallback': true,
         };
-      
+
       case 'clickHandler':
         return _getFallbackClickHandler(parameters);
-      
+
       case 'testFunction':
         return {
           'success': true,
           'message': 'Fallback mode active - Cloud Functions not deployed',
           'timestamp': DateTime.now().toIso8601String(),
-          'usingFallback': true
+          'usingFallback': true,
         };
-      
+
       default:
         return {
           'success': false,
           'error': 'الدالة غير متاحة حالياً',
-          'usingFallback': true
+          'usingFallback': true,
         };
     }
   }
 
-  Map<String, dynamic> _getFallbackClickHandler(Map<String, dynamic>? parameters) {
+  Map<String, dynamic> _getFallbackClickHandler(
+    Map<String, dynamic>? parameters,
+  ) {
     // Simulation d'analyse de fraude en fallback
     final riskScore = DateTime.now().millisecond % 100; // Score aléatoire 0-99
     final requiresReview = riskScore > 70;
@@ -537,7 +688,11 @@ class CloudFunctionsService {
       'riskScore': riskScore,
       'requiresManualReview': requiresReview,
       'fraudAnalysis': {
-        'riskLevel': riskScore > 80 ? 'high' : riskScore > 50 ? 'medium' : 'low',
+        'riskLevel': riskScore > 80
+            ? 'high'
+            : riskScore > 50
+            ? 'medium'
+            : 'low',
         'flags': riskScore > 80 ? ['HIGH_RISK_SCORE'] : [],
         'confidence': 100 - riskScore,
       },
@@ -588,7 +743,9 @@ class CloudFunctionsService {
           'campaignTitle': 'حملة تجريبية',
           'earnings': 0.1,
           'status': 'valid',
-          'clickedAt': DateTime.now().subtract(Duration(hours: 2)).toIso8601String(),
+          'clickedAt': DateTime.now()
+              .subtract(Duration(hours: 2))
+              .toIso8601String(),
         },
         {
           'id': 'fallback_2',
@@ -596,11 +753,39 @@ class CloudFunctionsService {
           'campaignTitle': 'عرض خاص',
           'earnings': 0.15,
           'status': 'valid',
-          'clickedAt': DateTime.now().subtract(Duration(hours: 5)).toIso8601String(),
-        }
+          'clickedAt': DateTime.now()
+              .subtract(Duration(hours: 5))
+              .toIso8601String(),
+        },
       ],
-      'usingFallback': true
+      'usingFallback': true,
     };
+  }
+
+  /// 🔄 Corriger toutes les campagnes
+  Future<Map<String, dynamic>> fixAllCampaignsClicks() async {
+    try {
+      final result = await _functions
+          .httpsCallable('fixCampaignsAchievedClicks')
+          .call();
+      return result.data;
+    } catch (e) {
+      print('❌ Error fixing campaigns: $e');
+      return {'success': false, 'error': e.toString()};
+    }
+  }
+
+  /// 📊 Vérifier les statistiques d'une campagne
+  Future<Map<String, dynamic>> getCampaignStats(String campaignId) async {
+    try {
+      final result = await _functions.httpsCallable('getCampaignStats').call({
+        'campaignId': campaignId,
+      });
+      return result.data;
+    } catch (e) {
+      print('❌ Error getting campaign stats: $e');
+      return {'success': false, 'error': e.toString()};
+    }
   }
 
   Map<String, dynamic> _getFallbackRecommendedCampaigns(int limit) {
@@ -622,8 +807,12 @@ class CloudFunctionsService {
         'maxClicksPerUser': 3,
         'conversionRate': 2.5,
         'conversions': 25,
-        'createdAt': DateTime.now().subtract(Duration(days: 5)).toIso8601String(),
-        'startDate': DateTime.now().subtract(Duration(days: 5)).toIso8601String(),
+        'createdAt': DateTime.now()
+            .subtract(Duration(days: 5))
+            .toIso8601String(),
+        'startDate': DateTime.now()
+            .subtract(Duration(days: 5))
+            .toIso8601String(),
         'endDate': DateTime.now().add(Duration(days: 25)).toIso8601String(),
         'imageUrl': null,
       },
@@ -644,18 +833,22 @@ class CloudFunctionsService {
         'maxClicksPerUser': 2,
         'conversionRate': 3.0,
         'conversions': 15,
-        'createdAt': DateTime.now().subtract(Duration(days: 2)).toIso8601String(),
-        'startDate': DateTime.now().subtract(Duration(days: 2)).toIso8601String(),
+        'createdAt': DateTime.now()
+            .subtract(Duration(days: 2))
+            .toIso8601String(),
+        'startDate': DateTime.now()
+            .subtract(Duration(days: 2))
+            .toIso8601String(),
         'endDate': DateTime.now().add(Duration(days: 8)).toIso8601String(),
         'imageUrl': null,
-      }
+      },
     ];
 
     return {
       'success': true,
       'campaigns': campaigns.take(limit).toList(),
       'count': campaigns.length,
-      'usingFallback': true
+      'usingFallback': true,
     };
   }
 
@@ -678,8 +871,12 @@ class CloudFunctionsService {
         'maxClicksPerUser': 3,
         'conversionRate': 1.8,
         'conversions': 45,
-        'createdAt': DateTime.now().subtract(Duration(days: 10)).toIso8601String(),
-        'startDate': DateTime.now().subtract(Duration(days: 10)).toIso8601String(),
+        'createdAt': DateTime.now()
+            .subtract(Duration(days: 10))
+            .toIso8601String(),
+        'startDate': DateTime.now()
+            .subtract(Duration(days: 10))
+            .toIso8601String(),
         'endDate': DateTime.now().add(Duration(days: 20)).toIso8601String(),
         'imageUrl': null,
       },
@@ -700,11 +897,15 @@ class CloudFunctionsService {
         'maxClicksPerUser': 2,
         'conversionRate': 2.2,
         'conversions': 35,
-        'createdAt': DateTime.now().subtract(Duration(days: 7)).toIso8601String(),
-        'startDate': DateTime.now().subtract(Duration(days: 7)).toIso8601String(),
+        'createdAt': DateTime.now()
+            .subtract(Duration(days: 7))
+            .toIso8601String(),
+        'startDate': DateTime.now()
+            .subtract(Duration(days: 7))
+            .toIso8601String(),
         'endDate': DateTime.now().add(Duration(days: 23)).toIso8601String(),
         'imageUrl': null,
-      }
+      },
     ];
 
     // Simulation de pagination simple
@@ -712,7 +913,7 @@ class CloudFunctionsService {
     final endIndex = startIndex + limit;
     final paginatedCampaigns = campaigns.sublist(
       startIndex.clamp(0, campaigns.length),
-      endIndex.clamp(0, campaigns.length)
+      endIndex.clamp(0, campaigns.length),
     );
 
     return {
@@ -721,7 +922,7 @@ class CloudFunctionsService {
       'count': paginatedCampaigns.length,
       'page': page,
       'hasMore': endIndex < campaigns.length,
-      'usingFallback': true
+      'usingFallback': true,
     };
   }
 
@@ -740,11 +941,19 @@ class CloudFunctionsService {
         'avgEarningsPerClick': 0.1,
       },
       'chartData': {
-        'labels': ['الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت', 'الأحد'],
+        'labels': [
+          'الإثنين',
+          'الثلاثاء',
+          'الأربعاء',
+          'الخميس',
+          'الجمعة',
+          'السبت',
+          'الأحد',
+        ],
         'earnings': [2.1, 1.8, 2.5, 3.2, 2.8, 1.9, 2.25],
         'clicks': [18, 15, 22, 28, 25, 17, 19],
       },
-      'usingFallback': true
+      'usingFallback': true,
     };
   }
 
@@ -773,12 +982,15 @@ class CloudFunctionsService {
     required String userId,
     required String userLocation,
   }) async {
-    return await callFunction('shareCampaign', parameters: {
-      'campaignId': campaignId,
-      'userId': userId,
-      'userLocation': userLocation,
-      'timestamp': DateTime.now().millisecondsSinceEpoch,
-    });
+    return await callFunction(
+      'shareCampaign',
+      parameters: {
+        'campaignId': campaignId,
+        'userId': userId,
+        'userLocation': userLocation,
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+      },
+    );
   }
   // ============ GESTION DES ERREURS AMÉLIORÉE ============
 

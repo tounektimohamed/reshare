@@ -82,27 +82,28 @@ class ClickModel {
     return 0.0;
   }
 
-  static ClickStatus _parseClickStatus(dynamic status) {
-    if (status == null) return ClickStatus.valid;
-    
-    if (status is int) {
-      return ClickStatus.values[status.clamp(0, ClickStatus.values.length - 1)];
-    }
-    
-    if (status is String) {
-      switch (status.toLowerCase()) {
-        case 'valid': return ClickStatus.valid;
-        case 'pending': return ClickStatus.pending;
-        case 'suspicious': return ClickStatus.suspicious;
-        case 'invalid': return ClickStatus.invalid;
-        case 'fraud': return ClickStatus.fraud;
-        default: return ClickStatus.valid;
-      }
-    }
-    
-    return ClickStatus.valid;
+  // Dans votre ClickModel, assurez-vous que le parsing est correct
+static ClickStatus _parseClickStatus(dynamic status) {
+  if (status == null) return ClickStatus.pending;
+  
+  if (status is int) {
+    return ClickStatus.values[status.clamp(0, ClickStatus.values.length - 1)];
   }
-
+  
+  if (status is String) {
+    switch (status.toLowerCase()) {
+      case 'valid': return ClickStatus.valid;
+      case 'pending': return ClickStatus.pending;
+      case 'suspicious': return ClickStatus.suspicious;
+      case 'invalid': return ClickStatus.invalid;
+      case 'fraud': return ClickStatus.fraud;
+      case 'pending_review': return ClickStatus.suspicious; // Mapping
+      default: return ClickStatus.pending;
+    }
+  }
+  
+  return ClickStatus.pending;
+}
   static DateTime _parseTimestamp(dynamic timestamp) {
     try {
       if (timestamp == null) {
