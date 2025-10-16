@@ -2263,69 +2263,102 @@ class _ADHomeScreenState extends State<ADHomeScreen> {
     );
   }
 
-  Widget _buildActivityItem(ClickModel click) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.background,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: _getClickStatusColor(click.status).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: Icon(
-              _getClickStatusIcon(click.status),
-              color: _getClickStatusColor(click.status),
-              size: 16,
-            ),
+ Widget _buildActivityItem(ClickModel click) {
+  return Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: AppColors.background,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Row(
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: _getClickStatusColor(click.status).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(18),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  click.campaignTitle,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    fontFamily: 'Tajawal',
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+          child: Icon(
+            _getClickStatusIcon(click.status),
+            color: _getClickStatusColor(click.status),
+            size: 16,
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Utiliser FutureBuilder pour récupérer le nom de la campagne
+              FutureBuilder<String>(
+                future: _getCampaignTitle(click.campaignId),
+                builder: (context, snapshot) {
+                  String displayTitle;
+                  
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    displayTitle = 'جاري التحميل...';
+                  } else if (snapshot.hasError) {
+                    displayTitle = 'حملة نشطة';
+                  } else {
+                    displayTitle = snapshot.data ?? 'حملة نشطة';
+                  }
+                  
+                  return Text(
+                    displayTitle,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Tajawal',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  );
+                },
+              ),
+              Text(
+                _formatTime(click.clickedAt),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  fontFamily: 'Tajawal',
                 ),
-                Text(
-                  _formatTime(click.clickedAt),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppColors.textSecondary,
-                    fontFamily: 'Tajawal',
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Text(
-            '+${click.earnings.toStringAsFixed(3)} د',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: AppColors.success,
-              fontFamily: 'Tajawal',
-            ),
+        ),
+        Text(
+          '+${click.earnings.toStringAsFixed(3)} د',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: AppColors.success,
+            fontFamily: 'Tajawal',
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
+// Méthode pour récupérer le titre depuis Firestore
+Future<String> _getCampaignTitle(String campaignId) async {
+  try {
+    final doc = await FirebaseFirestore.instance
+        .collection('campaigns')
+        .doc(campaignId)
+        .get();
+    
+    if (doc.exists) {
+      return doc.data()?['title'] ?? 'حملة نشطة';
+    }
+    return 'حملة نشطة';
+  } catch (e) {
+    print('❌ Error fetching campaign title: $e');
+    return 'حملة نشطة';
+  }
+}
   Widget _buildEmptyActivity() {
     return Column(
       children: [
@@ -2356,7 +2389,6 @@ class _ADHomeScreenState extends State<ADHomeScreen> {
       ],
     );
   }
-
   Widget _buildQuickShareButton() {
     return FloatingActionButton.extended(
       onPressed: () {
@@ -2595,7 +2627,7 @@ class _ADHomeScreenState extends State<ADHomeScreen> {
           ),
 
           // 🔥 NOUVEAU: Floating Action Button for quick share
-          floatingActionButton: _buildQuickShareButton(),
+        //  floatingActionButton: _buildQuickShareButton(),
           floatingActionButtonLocation:
               FloatingActionButtonLocation.centerFloat,
         );

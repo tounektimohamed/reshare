@@ -1194,6 +1194,7 @@ exports.clickHandler = functions.https.onRequest(async (req, res) => {
         clickedAt: admin.firestore.Timestamp.now(),
         ip: req.ip,
         userAgent: req.get("user-agent"),
+        campaignTitle: campaign.title || 'حملة غير معروفة', // 🔥 AJOUT ICI
       });
       console.log("🚫 Click rejeté:", fraudCheck.reason);
       return res.redirect(302, campaign.targetUrl);
@@ -1210,7 +1211,7 @@ exports.clickHandler = functions.https.onRequest(async (req, res) => {
     const participantEarnings = (campaign.cpc || 0.06) * 0.6;
     const platformEarnings = (campaign.cpc || 0.06) * 0.4;
 
-    // 🧾 Enregistrement du clic
+    // 🧾 Enregistrement du clic - AJOUT DU TITRE DE LA CAMPAGNE
     await db.collection("clicks").add({
       campaignId,
       shareId,
@@ -1224,9 +1225,11 @@ exports.clickHandler = functions.https.onRequest(async (req, res) => {
       releaseStatus: "pending",
       releaseDelayHours,
       releaseEligibleAt,
+      campaignTitle: campaign.title || 'حملة نشطة', // 🔥 AJOUT IMPORTANT ICI
+      participantName: share.participantName || 'مستخدم مجهول', // 🔥 OPTIONNEL: pour afficher le nom
     });
 
-    // 🔥 AJOUT: Mise à jour du compteur de clics de la campagne
+    // 🔥 Mise à jour du compteur de clics de la campagne
     await db.collection("campaigns").doc(campaignId).update({
       achievedClicks: admin.firestore.FieldValue.increment(1),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
@@ -1242,7 +1245,7 @@ exports.clickHandler = functions.https.onRequest(async (req, res) => {
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
       });
 
-    console.log(`✅ Click enregistré → achievedClicks incrémenté pour: ${campaignId}`);
+    console.log(`✅ Click enregistré → achievedClicks incrémenté pour: ${campaign.title}`);
 
     // 🚀 Redirection vers la cible
     return res.redirect(302, campaign.targetUrl);

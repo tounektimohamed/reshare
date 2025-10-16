@@ -166,7 +166,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           
           // 🔥 NOUVEAU: Floating Action Button for quick share
-          floatingActionButton: _buildQuickShareButton(),
+      //    floatingActionButton: _buildQuickShareButton(),
           floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
         );
       },
