@@ -1,4 +1,3 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class CampaignModel {
@@ -22,10 +21,13 @@ class CampaignModel {
   final DateTime? startDate;
   final DateTime? endDate;
   final String? imageUrl;
+  final String? imageExtension; // 🔥 NOUVEAU CHAMP
+  final String? imagePath; // 🔥 NOUVEAU CHAMP
   final bool isActive;
   final int maxClicksPerUser;
   final double conversionRate;
   final int conversions;
+  final String? advertiserId; // 🔥 NOUVEAU CHAMP
 
   CampaignModel({
     required this.id,
@@ -48,15 +50,44 @@ class CampaignModel {
     this.startDate,
     this.endDate,
     this.imageUrl,
+    this.imageExtension, // 🔥 NOUVEAU
+    this.imagePath, // 🔥 NOUVEAU
     this.isActive = true,
     this.maxClicksPerUser = 3,
     this.conversionRate = 0.0,
     this.conversions = 0,
+    this.advertiserId, // 🔥 NOUVEAU
   });
 
+  // Getters calculés
   int get remainingClicks => targetClicks - achievedClicks;
   double get remainingBudget => budget - spent;
   double get participantEarnings => cpc * 0.6;
+  double get totalCost => cpc * targetClicks;
+  bool get isBudgetSufficient => totalCost <= budget;
+  double get completionRate => targetClicks > 0 ? (achievedClicks / targetClicks) * 100 : 0.0;
+  double get budgetUtilization => budget > 0 ? (spent / budget) * 100 : 0.0;
+  
+  // 🔥 NOUVEAU : Vérifier si la campagne a une image
+  bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
+  
+  // 🔥 NOUVEAU : Obtenir le type MIME de l'image
+  String? get imageMimeType {
+    if (imageExtension == null) return null;
+    switch (imageExtension!.toLowerCase()) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'gif':
+        return 'image/gif';
+      case 'webp':
+        return 'image/webp';
+      default:
+        return 'image/$imageExtension';
+    }
+  }
 
   factory CampaignModel.fromMap(Map<String, dynamic> map) {
     return CampaignModel(
@@ -65,8 +96,8 @@ class CampaignModel {
       title: map['title']?.toString() ?? '',
       description: map['description']?.toString() ?? '',
       targetUrl: map['targetUrl']?.toString() ?? '',
-      type: _parseCampaignType(map['type']), // 🔥 CORRECTION ICI
-      status: _parseCampaignStatus(map['status']), // 🔥 CORRECTION ICI
+      type: _parseCampaignType(map['type']),
+      status: _parseCampaignStatus(map['status']),
       budget: _safeDouble(map['budget']),
       spent: _safeDouble(map['spent']),
       cpc: _safeDouble(map['cpc']),
@@ -84,14 +115,17 @@ class CampaignModel {
       startDate: _parseDateTime(map['startDate']),
       endDate: _parseDateTime(map['endDate']),
       imageUrl: map['imageUrl']?.toString(),
+      imageExtension: map['imageExtension']?.toString(), // 🔥 NOUVEAU
+      imagePath: map['imagePath']?.toString(), // 🔥 NOUVEAU
       isActive: map['isActive'] == true,
       maxClicksPerUser: _safeInt(map['maxClicksPerUser']),
       conversionRate: _safeDouble(map['conversionRate']),
       conversions: _safeInt(map['conversions']),
+      advertiserId: map['advertiserId']?.toString(), // 🔥 NOUVEAU
     );
   }
 
-  // 🔥 NOUVELLE MÉTHODE : Parser CampaignType de manière sécurisée
+  // 🔥 MÉTHODE : Parser CampaignType de manière sécurisée
   static CampaignType _parseCampaignType(dynamic type) {
     if (type == null) return CampaignType.open;
     
@@ -117,7 +151,7 @@ class CampaignModel {
     return CampaignType.open;
   }
 
-  // 🔥 NOUVELLE MÉTHODE : Parser CampaignStatus de manière sécurisée
+  // 🔥 MÉTHODE : Parser CampaignStatus de manière sécurisée
   static CampaignStatus _parseCampaignStatus(dynamic status) {
     if (status == null) return CampaignStatus.pending;
     
@@ -193,8 +227,8 @@ class CampaignModel {
       'title': title,
       'description': description,
       'targetUrl': targetUrl,
-      'type': type.index, // 🔥 Toujours stocker comme int
-      'status': status.index, // 🔥 Toujours stocker comme int
+      'type': type.index,
+      'status': status.index,
       'budget': budget,
       'spent': spent,
       'cpc': cpc,
@@ -208,11 +242,102 @@ class CampaignModel {
       'startDate': startDate?.toIso8601String(),
       'endDate': endDate?.toIso8601String(),
       'imageUrl': imageUrl,
+      'imageExtension': imageExtension, // 🔥 NOUVEAU
+      'imagePath': imagePath, // 🔥 NOUVEAU
       'isActive': isActive,
       'maxClicksPerUser': maxClicksPerUser,
       'conversionRate': conversionRate,
       'conversions': conversions,
+      'advertiserId': advertiserId, // 🔥 NOUVEAU
     };
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Pour la création avec image
+  Map<String, dynamic> toCreateMap() {
+    return {
+      'title': title,
+      'description': description,
+      'targetUrl': targetUrl,
+      'type': type.index,
+      'budget': budget,
+      'cpc': cpc,
+      'targetClicks': targetClicks,
+      'imageUrl': imageUrl,
+      'imageExtension': imageExtension,
+      'imagePath': imagePath,
+      'advertiserId': advertiserId ?? businessId,
+      'createdAt': createdAt.toIso8601String(),
+      'status': CampaignStatus.pending.index,
+      'isActive': true,
+      'spent': 0.0,
+      'achievedClicks': 0,
+      'uniqueClicks': 0,
+      'maxClicksPerUser': maxClicksPerUser,
+      'conversionRate': 0.0,
+      'conversions': 0,
+    };
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Vérifier si la campagne peut être modifiée
+  bool get canBeEdited {
+    return status == CampaignStatus.pending || 
+           status == CampaignStatus.rejected;
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Vérifier si la campagne peut être activée
+  bool get canBeActivated {
+    return status == CampaignStatus.approved && 
+           isActive == false &&
+           remainingBudget > 0 &&
+           remainingClicks > 0;
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Obtenir le statut sous forme de texte
+  String get statusText {
+    switch (status) {
+      case CampaignStatus.pending:
+        return 'قيد المراجعة';
+      case CampaignStatus.approved:
+        return 'مقبولة';
+      case CampaignStatus.active:
+        return 'نشطة';
+      case CampaignStatus.paused:
+        return 'متوقفة';
+      case CampaignStatus.completed:
+        return 'مكتملة';
+      case CampaignStatus.rejected:
+        return 'مرفوضة';
+    }
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Obtenir le type sous forme de texte
+  String get typeText {
+    switch (type) {
+      case CampaignType.open:
+        return 'مفتوحة';
+      case CampaignType.regional:
+        return 'إقليمية';
+      case CampaignType.precise:
+        return 'دقيقة';
+    }
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Obtenir la couleur du statut
+  int get statusColor {
+    switch (status) {
+      case CampaignStatus.pending:
+        return 0xFFFFA000; // Amber
+      case CampaignStatus.approved:
+        return 0xFF4CAF50; // Green
+      case CampaignStatus.active:
+        return 0xFF2196F3; // Blue
+      case CampaignStatus.paused:
+        return 0xFFFF9800; // Orange
+      case CampaignStatus.completed:
+        return 0xFF9C27B0; // Purple
+      case CampaignStatus.rejected:
+        return 0xFFF44336; // Red
+    }
   }
 
   /// إنشاء نسخة معدلة من الحملة
@@ -237,10 +362,13 @@ class CampaignModel {
     DateTime? startDate,
     DateTime? endDate,
     String? imageUrl,
+    String? imageExtension, // 🔥 NOUVEAU
+    String? imagePath, // 🔥 NOUVEAU
     bool? isActive,
     int? maxClicksPerUser,
     double? conversionRate,
     int? conversions,
+    String? advertiserId, // 🔥 NOUVEAU
   }) {
     return CampaignModel(
       id: id ?? this.id,
@@ -263,11 +391,82 @@ class CampaignModel {
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       imageUrl: imageUrl ?? this.imageUrl,
+      imageExtension: imageExtension ?? this.imageExtension, // 🔥 NOUVEAU
+      imagePath: imagePath ?? this.imagePath, // 🔥 NOUVEAU
       isActive: isActive ?? this.isActive,
       maxClicksPerUser: maxClicksPerUser ?? this.maxClicksPerUser,
       conversionRate: conversionRate ?? this.conversionRate,
       conversions: conversions ?? this.conversions,
+      advertiserId: advertiserId ?? this.advertiserId, // 🔥 NOUVEAU
     );
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Pour mettre à jour l'image
+  CampaignModel withImage({
+    required String imageUrl,
+    required String imageExtension,
+    String? imagePath,
+  }) {
+    return copyWith(
+      imageUrl: imageUrl,
+      imageExtension: imageExtension,
+      imagePath: imagePath,
+    );
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Pour activer la campagne
+  CampaignModel activate() {
+    return copyWith(
+      status: CampaignStatus.active,
+      isActive: true,
+      startDate: DateTime.now(),
+    );
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Pour mettre en pause la campagne
+  CampaignModel pause() {
+    return copyWith(
+      status: CampaignStatus.paused,
+      isActive: false,
+    );
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Pour compléter la campagne
+  CampaignModel complete() {
+    return copyWith(
+      status: CampaignStatus.completed,
+      isActive: false,
+      endDate: DateTime.now(),
+    );
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Pour rejeter la campagne
+  CampaignModel reject() {
+    return copyWith(
+      status: CampaignStatus.rejected,
+      isActive: false,
+    );
+  }
+
+  /// 🔥 NOUVELLE MÉTHODE : Pour approuver la campagne
+  CampaignModel approve() {
+    return copyWith(
+      status: CampaignStatus.approved,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is CampaignModel && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
+
+  @override
+  String toString() {
+    return 'CampaignModel(id: $id, title: $title, type: $type, status: $status, budget: $budget, cpc: $cpc, imageUrl: $imageUrl, hasImage: $hasImage)';
   }
 }
 
@@ -302,6 +501,68 @@ class Location {
       'latitude': latitude,
       'longitude': longitude,
       'address': address,
+    };
+  }
+
+  Location copyWith({
+    double? latitude,
+    double? longitude,
+    String? address,
+  }) {
+    return Location(
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      address: address ?? this.address,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'Location(lat: $latitude, lng: $longitude, address: $address)';
+  }
+}
+
+/// 🔥 NOUVELLE CLASSE : Pour les statistiques de campagne
+class CampaignStats {
+  final int totalClicks;
+  final int uniqueClicks;
+  final double totalSpent;
+  final double conversionRate;
+  final int sharesCount;
+  final Map<String, int> clicksByRegion;
+  final Map<String, int> clicksByDevice;
+
+  CampaignStats({
+    required this.totalClicks,
+    required this.uniqueClicks,
+    required this.totalSpent,
+    required this.conversionRate,
+    required this.sharesCount,
+    required this.clicksByRegion,
+    required this.clicksByDevice,
+  });
+
+  factory CampaignStats.fromMap(Map<String, dynamic> map) {
+    return CampaignStats(
+      totalClicks: map['totalClicks'] ?? 0,
+      uniqueClicks: map['uniqueClicks'] ?? 0,
+      totalSpent: (map['totalSpent'] ?? 0).toDouble(),
+      conversionRate: (map['conversionRate'] ?? 0).toDouble(),
+      sharesCount: map['sharesCount'] ?? 0,
+      clicksByRegion: Map<String, int>.from(map['clicksByRegion'] ?? {}),
+      clicksByDevice: Map<String, int>.from(map['clicksByDevice'] ?? {}),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'totalClicks': totalClicks,
+      'uniqueClicks': uniqueClicks,
+      'totalSpent': totalSpent,
+      'conversionRate': conversionRate,
+      'sharesCount': sharesCount,
+      'clicksByRegion': clicksByRegion,
+      'clicksByDevice': clicksByDevice,
     };
   }
 }

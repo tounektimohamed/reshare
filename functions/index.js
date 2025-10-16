@@ -1,9 +1,21 @@
-
-const functions = require('firebase-functions');
-const admin = require('firebase-admin');
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+const fetch = require("node-fetch");
+const crypto = require("crypto");
 
 admin.initializeApp();
 const db = admin.firestore();
+
+// ✅ CONFIG
+const IPINFO_TOKEN = "96ed40fbcc9b03";
+const HMAC_SECRET = functions.config().hmac.secret;
+const RATE_LIMIT_COUNT = 10;
+const RATE_LIMIT_WINDOW = 60 * 1000;
+
+// 🌍 الدول المسموحة
+const ALLOWED_COUNTRIES = ["TN"];
+
+
 
 // ============ FONCTIONS DE BASE POUR LE DASHBOARD ============
 
@@ -107,6 +119,75 @@ const db = admin.firestore();
   }
 });
 
+async function detectFraud(req, campaignId, userId) {
+  const ip = (req.ip || "").replace("::ffff:", "");
+  const ua = req.get("user-agent") || "";
+
+  if (!ua || ua.length < 10) {
+    return { reason: "User-Agent vide ou invalide" };
+  }
+
+  // 🔸 رفض النقرات المتكررة بسرعة
+  const recentClicks = await admin.firestore()
+    .collection("clicks")
+    .where("ip", "==", ip)
+    .where("userId", "==", userId)
+    .orderBy("clickedAt", "desc")
+    .limit(1)
+    .get();
+
+  if (!recentClicks.empty) {
+    const lastClick = recentClicks.docs[0].data();
+    const lastTime = lastClick.clickedAt.toDate().getTime();
+    if (Date.now() - lastTime < 10 * 1000) {
+      return { reason: "Click répété trop vite" };
+    }
+  }
+
+  // 🔸 ipinfo للتحقق من مصدر الـ IP والدولة
+  try {
+    const res = await fetch(`https://ipinfo.io/${ip}?token=${IPINFO_TOKEN}`);
+    const info = await res.json();
+    const org = (info.org || "").toLowerCase();
+
+    // كشف VPN ومراكز البيانات
+    if (/(amazon|google|facebook|microsoft|digitalocean|cloudflare|vpn|proxy)/.test(org)) {
+      return { reason: "VPN ou datacenter détecté" };
+    }
+
+    // 🔥 التحقق من الدولة - تمت إضافة تونس
+    if (info.country && !ALLOWED_COUNTRIES.includes(info.country)) {
+      return { reason: `Pays non autorisé: ${info.country}` };
+    }
+
+  } catch (err) {
+    console.warn("Erreur ipinfo", err);
+  }
+
+  // 🔸 referer check - أكثر مرونة
+  const ref = req.get("referer") || "";
+  if (ref && /(spam|fake|scam|malware)/i.test(ref)) {
+    return { reason: "Référer suspect" };
+  }
+
+  // 🔸 détecter navigateurs headless
+  if (/headless|selenium|puppeteer|phantomjs/i.test(ua)) {
+    return { reason: "Navigateur automatisé détecté" };
+  }
+
+  return null;
+}
+
+// 🌐 دالة مشتركة لتحليل IP
+async function getIPInfo(ip) {
+  try {
+    const response = await fetch(`https://ipinfo.io/${ip}?token=${IPINFO_TOKEN}`);
+    return await response.json();
+  } catch (error) {
+    console.error("❌ Erreur ipinfo:", error);
+    return null;
+  }
+}
 /**
  * Récupérer les campagnes recommandées
  *//**
@@ -1157,24 +1238,149 @@ exports.clickHandler = functions.https.onRequest(async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type");
-
+  
   if (req.method === "OPTIONS") {
-    res.status(204).send("");
-    return;
+    return res.status(204).send("");
   }
 
-  const { c: campaignId, s: shareId } = req.query;
+  const { c: campaignId, s: shareId, t: token } = req.query;
   if (!campaignId || !shareId) {
     return res.status(400).send("⚠️ Paramètres manquants");
   }
 
   try {
-    // 🔹 Récupération des documents
+    const ip = (req.ip || "").replace("::ffff:", "");
+    const ua = req.get("user-agent") || "";
+
+    // 1️⃣ الكشف عن البوتات عبر UA
+    const botUA = /(facebookexternalhit|twitterbot|whatsapp|telegram|googlebot|bot|curl|wget)/i;
+    if (botUA.test(ua)) {
+      await db.collection("bot_logs").add({
+        ip, ua, reason: "user-agent",
+        at: admin.firestore.Timestamp.now()
+      });
+      return res.status(204).send("");
+    }
+
+    // 2️⃣ rate limit
+    const since = Date.now() - RATE_LIMIT_WINDOW;
+    const snap = await db.collection("rate_limits")
+      .where("ip", "==", ip)
+      .where("ts", ">", admin.firestore.Timestamp.fromMillis(since))
+      .get();
+    if (snap.size >= RATE_LIMIT_COUNT) {
+      await db.collection("bot_logs").add({
+        ip, ua, reason: "rate-limit",
+        at: admin.firestore.Timestamp.now()
+      });
+      return res.status(429).send("Too many requests");
+    }
+    await db.collection("rate_limits").add({
+      ip, ts: admin.firestore.Timestamp.now()
+    });
+
+    // 3️⃣ تحليل IP مرة واحدة فقط
+    let ipinfo = await getIPInfo(ip);
+
+    // فحص الدولة والمزود
+    const org = (ipinfo?.org || "").toLowerCase();
+    const host = (ipinfo?.hostname || "").toLowerCase();
+    const country = ipinfo?.country || "";
+
+    // فحص مراكز البيانات
+    if (/(google|facebook|amazon|aws|microsoft|digitalocean|cloudflare|linode|ovh|hetzner)/.test(org + host)) {
+      await db.collection("bot_logs").add({
+        ip, ua, reason: "ipinfo-datacenter",
+        ipinfo, at: admin.firestore.Timestamp.now()
+      });
+      return res.status(204).send("");
+    }
+
+    // فحص الدولة
+    if (country && !ALLOWED_COUNTRIES.includes(country)) {
+      await db.collection("bot_logs").add({
+        ip, ua, reason: `country-not-allowed-${country}`,
+        ipinfo, at: admin.firestore.Timestamp.now()
+      });
+      return res.status(204).send("");
+    }
+
+    // 4️⃣ إذا ما فماش token → صفحة interstitial
+    if (!token) {
+      const exp = Math.floor(Date.now() / 1000) + 90;
+      const payload = `${campaignId}|${shareId}|${exp}`;
+      const sig = crypto.createHmac("sha256", HMAC_SECRET).update(payload).digest("hex");
+      const t = Buffer.from(`${payload}|${sig}`).toString("base64url");
+
+      // 🔥 الحصول على بيانات الحملة لمعرفة targetUrl
+      const campaignDoc = await db.collection("campaigns").doc(campaignId).get();
+      if (!campaignDoc.exists) {
+        return res.status(404).send("⚠️ Campagne introuvable");
+      }
+      const campaign = campaignDoc.data();
+      
+      // 🔥 التصحيح: استخدام رابط الـ hosting لطلب POST ثم التوجيه إلى targetUrl
+      const hostingUrl = `https://scoutapk.web.app/click?c=${campaignId}&s=${shareId}&t=${t}`;
+      const targetUrl = campaign.targetUrl || "https://www.mytek.tn";
+      
+      const html = `
+<!doctype html>
+<html lang="ar">
+<head>
+  <meta charset="utf-8"/>
+  <title>جاري التوجيه…</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; margin-top: 30vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+  <div style="background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 15px; backdrop-filter: blur(10px); display: inline-block;">
+    <h3 style="margin-bottom: 1rem;">🚀 جاري التوجيه...</h3>
+    <p style="margin-bottom: 1.5rem;">الرجاء الانتظار لحظة</p>
+    <div style="width: 50px; height: 50px; border: 3px solid rgba(255,255,255,0.3); border-top: 3px solid white; border-radius: 50%; margin: 0 auto; animation: spin 1s linear infinite;"></div>
+  </div>
+  <style>
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+  <script>
+    (async () => {
+      try {
+        // 🔥 إرسال طلب POST لتسجيل النقرة
+        await fetch('${hostingUrl}', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (e) {
+        console.log('Erreur fetch, redirection continue...');
+      } finally {
+        setTimeout(() => {
+          // 🔥 🔥 🔥 التصحيح: التوجيه إلى الرابط المستهدف (targetUrl)
+          window.location.href = '${targetUrl}';
+        }, 1500);
+      }
+    })();
+  </script>
+</body>
+</html>`;
+      return res.status(200).send(html);
+    }
+
+    // 5️⃣ تحقق من التوكن (إذا كان موجوداً - هذا يعني الطلب الثاني)
+    const decoded = Buffer.from(token, "base64url").toString("utf8").split("|");
+    if (decoded.length !== 4) return res.status(401).send("token invalide");
+    const [c, s, expStr, sig] = decoded;
+    const exp = parseInt(expStr, 10);
+    const expected = crypto.createHmac("sha256", HMAC_SECRET).update(`${c}|${s}|${exp}`).digest("hex");
+    if (sig !== expected || Date.now() / 1000 > exp) {
+      return res.status(401).send("token expiré ou invalide");
+    }
+
+    // 6️⃣ استرجاع البيانات
     const [campaignDoc, shareDoc] = await Promise.all([
       db.collection("campaigns").doc(campaignId).get(),
       db.collection("shares").doc(shareId).get(),
     ]);
-
     if (!campaignDoc.exists || !shareDoc.exists) {
       return res.status(404).send("⚠️ Campagne ou partage introuvable");
     }
@@ -1182,72 +1388,57 @@ exports.clickHandler = functions.https.onRequest(async (req, res) => {
     const campaign = campaignDoc.data();
     const share = shareDoc.data();
 
-    // 🛡️ Vérification anti-fraude
+    // 7️⃣ detectFraud
     const fraudCheck = await detectFraud(req, campaignId, share.participantId);
     if (fraudCheck) {
       await db.collection("clicks").add({
-        campaignId,
-        shareId,
-        userId: share.participantId,
-        status: "fraud_suspect",
-        reason: fraudCheck.reason,
+        campaignId, shareId, userId: share.participantId,
+        status: "fraud_suspect", reason: fraudCheck.reason,
         clickedAt: admin.firestore.Timestamp.now(),
-        ip: req.ip,
-        userAgent: req.get("user-agent"),
-        campaignTitle: campaign.title || 'حملة غير معروفة', // 🔥 AJOUT ICI
+        ip, ua, ipinfo, country,
+        campaignTitle: campaign.title || "حملة غير معروفة"
       });
       console.log("🚫 Click rejeté:", fraudCheck.reason);
+      
+      // حتى في حالة الاحتيال، التوجيه إلى targetUrl
       return res.redirect(302, campaign.targetUrl);
     }
 
-    // ⚙️ Délai de libération : 15 min (0.25 h)
+    // 8️⃣ حساب الأرباح وتسجيل النقرة
     const releaseDelayHours = 0.25;
-    const nowTimestamp = admin.firestore.Timestamp.now();
+    const now = admin.firestore.Timestamp.now();
     const releaseEligibleAt = admin.firestore.Timestamp.fromMillis(
-      nowTimestamp.toMillis() + releaseDelayHours * 60 * 60 * 1000
+      now.toMillis() + releaseDelayHours * 60 * 60 * 1000
     );
 
-    // 💰 Calcul des gains
     const participantEarnings = (campaign.cpc || 0.06) * 0.6;
     const platformEarnings = (campaign.cpc || 0.06) * 0.4;
 
-    // 🧾 Enregistrement du clic - AJOUT DU TITRE DE LA CAMPAGNE
     await db.collection("clicks").add({
-      campaignId,
-      shareId,
-      userId: share.participantId,
-      status: "valid",
-      ip: req.ip,
-      userAgent: req.get("user-agent"),
-      earnings: participantEarnings,
-      platformEarnings,
-      clickedAt: nowTimestamp,
-      releaseStatus: "pending",
-      releaseDelayHours,
-      releaseEligibleAt,
-      campaignTitle: campaign.title || 'حملة نشطة', // 🔥 AJOUT IMPORTANT ICI
-      participantName: share.participantName || 'مستخدم مجهول', // 🔥 OPTIONNEL: pour afficher le nom
+      campaignId, shareId, userId: share.participantId,
+      status: "valid", ip, ua, ipinfo, country,
+      earnings: participantEarnings, platformEarnings,
+      clickedAt: now, releaseStatus: "pending",
+      releaseDelayHours, releaseEligibleAt,
+      campaignTitle: campaign.title || "حملة نشطة",
+      participantName: share.participantName || "مستخدم مجهول",
+      fraudScore: 0
     });
 
-    // 🔥 Mise à jour du compteur de clics de la campagne
     await db.collection("campaigns").doc(campaignId).update({
       achievedClicks: admin.firestore.FieldValue.increment(1),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // 🔄 Mise à jour de l'utilisateur
-    await db
-      .collection("users")
-      .doc(share.participantId)
-      .update({
-        pendingBalance: admin.firestore.FieldValue.increment(participantEarnings),
-        totalClicks: admin.firestore.FieldValue.increment(1),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      });
+    await db.collection("users").doc(share.participantId).update({
+      pendingBalance: admin.firestore.FieldValue.increment(participantEarnings),
+      totalClicks: admin.firestore.FieldValue.increment(1),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
 
-    console.log(`✅ Click enregistré → achievedClicks incrémenté pour: ${campaign.title}`);
-
-    // 🚀 Redirection vers la cible
+    console.log(`✅ Click enregistré pour: ${campaign.title} - Pays: ${country}`);
+    
+    // 🔥 في الطلب الثاني (مع التوكن)، التوجيه إلى targetUrl
     return res.redirect(302, campaign.targetUrl);
 
   } catch (err) {
@@ -1255,6 +1446,7 @@ exports.clickHandler = functions.https.onRequest(async (req, res) => {
     res.status(500).send("Erreur interne du serveur");
   }
 });
+
 /**
  * 🔄 CORRIGER LES ACHIEVEDCLICKS POUR TOUTES LES CAMPAGNES
  */
@@ -1272,7 +1464,7 @@ exports.fixCampaignsAchievedClicks = functions.https.onCall(async (data, context
 
     for (const campaignDoc of campaignsSnapshot.docs) {
       const campaignId = campaignDoc.id;
-      
+
       // Compter les clics valides pour cette campagne
       const validClicksQuery = await db.collection('clicks')
         .where('campaignId', '==', campaignId)
@@ -1289,7 +1481,7 @@ exports.fixCampaignsAchievedClicks = functions.https.onCall(async (data, context
           updatedAt: admin.firestore.FieldValue.serverTimestamp(),
           fixedAt: admin.firestore.FieldValue.serverTimestamp()
         });
-        
+
         console.log(`🛠️ Campagne ${campaignId}: ${currentAchievedClicks} → ${actualClicksCount} clics`);
         fixedCount++;
       }
@@ -1320,7 +1512,7 @@ exports.getCampaignStats = functions.https.onCall(async (data, context) => {
 
   try {
     const campaignDoc = await db.collection('campaigns').doc(campaignId).get();
-    
+
     if (!campaignDoc.exists) {
       throw new functions.https.HttpsError('not-found', 'الحملة غير موجودة');
     }

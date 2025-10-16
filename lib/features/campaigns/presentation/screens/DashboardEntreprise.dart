@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:reshare/features/campaigns/presentation/screens/create_campaign_with_image_screen.dart';
 import 'package:reshare/presentation/widgets/campaign/cr%C3%A9ationcampagne.dart';
 import 'package:syncfusion_flutter_charts/charts.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../../core/services/cloud_functions_service.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -103,7 +105,7 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => const CreateCampaignScreen(),
+                builder: (context) => const CreateCampaignWithImageScreen(),
               ),
             ),
           ),
@@ -403,55 +405,129 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
   Widget _buildCampaignItem(CampaignData campaign) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
-      child: ListTile(
-        leading: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: campaign.isActive
-                ? Colors.green.withOpacity(0.2)
-                : Colors.grey.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(
-            campaign.isActive ? Icons.play_arrow : Icons.pause,
-            color: campaign.isActive ? Colors.green : Colors.grey,
-          ),
+      elevation: 2,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
         ),
-        title: Text(campaign.title),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        child: Column(
           children: [
-            Text(
-              'النقرات: ${campaign.totalClicks} • CTR: ${campaign.ctr.toStringAsFixed(1)}%',
-            ),
-            const SizedBox(height: 4),
-            LinearProgressIndicator(
-              value: campaign.budget > 0
-                  ? (campaign.spent / campaign.budget)
-                        .clamp(0.0, 1.0)
-                        .toDouble()
-                  : 0,
-              backgroundColor: Colors.grey[300],
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+            // Image de la campagne
+            if (campaign.imageUrl != null && campaign.imageUrl!.isNotEmpty)
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(12),
+                  topRight: Radius.circular(12),
+                ),
+                child: Container(
+                  height: 120,
+                  width: double.infinity,
+                  child: CachedNetworkImage(
+                    imageUrl: campaign.imageUrl!,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) => Container(
+                      color: Colors.grey[200],
+                      child: const Center(
+                        child: CircularProgressIndicator(),
+                      ),
+                    ),
+                    errorWidget: (context, url, error) => Container(
+                      color: Colors.grey[200],
+                      child: const Icon(
+                        Icons.image_not_supported,
+                        color: Colors.grey,
+                        size: 40,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            
+            // Contenu de la campagne
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Statut de la campagne
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: campaign.isActive
+                          ? Colors.green.withOpacity(0.2)
+                          : Colors.grey.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      campaign.isActive ? Icons.play_arrow : Icons.pause,
+                      color: campaign.isActive ? Colors.green : Colors.grey,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  
+                  // Détails de la campagne
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          campaign.title,
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'النقرات: ${campaign.totalClicks} • CTR: ${campaign.ctr.toStringAsFixed(1)}%',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        LinearProgressIndicator(
+                          value: campaign.budget > 0
+                              ? (campaign.spent / campaign.budget)
+                                    .clamp(0.0, 1.0)
+                                    .toDouble()
+                              : 0,
+                          backgroundColor: Colors.grey[300],
+                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '${campaign.spent.toStringAsFixed(0)} د',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.blue,
+                              ),
+                            ),
+                            Text(
+                              'من ${campaign.budget.toStringAsFixed(0)} د',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-        trailing: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text(
-              '${campaign.spent.toStringAsFixed(0)} د',
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            Text(
-              'من ${campaign.budget.toStringAsFixed(0)} د',
-              style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-            ),
-          ],
-        ),
-        onTap: () => _showCampaignDetails(campaign),
       ),
     );
   }
@@ -465,6 +541,39 @@ class _CompanyDashboardScreenState extends State<CompanyDashboardScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Image de la campagne dans les détails
+              if (campaign.imageUrl != null && campaign.imageUrl!.isNotEmpty)
+                Column(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: campaign.imageUrl!,
+                        height: 150,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          height: 150,
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+                        ),
+                        errorWidget: (context, url, error) => Container(
+                          height: 150,
+                          color: Colors.grey[200],
+                          child: const Icon(
+                            Icons.image_not_supported,
+                            color: Colors.grey,
+                            size: 40,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              
               _buildDetailRow('الحالة', campaign.isActive ? 'نشطة' : 'متوقفة'),
               _buildDetailRow(
                 'الميزانية',
@@ -568,6 +677,7 @@ class CampaignData {
   final int totalClicks;
   final bool isActive;
   final double ctr;
+  final String? imageUrl; // Nouveau champ pour l'image
 
   CampaignData({
     required this.id,
@@ -577,6 +687,7 @@ class CampaignData {
     required this.totalClicks,
     required this.isActive,
     required this.ctr,
+    this.imageUrl, // Nouveau champ optionnel
   });
 
   factory CampaignData.fromMap(Map<String, dynamic> map) {
@@ -603,6 +714,7 @@ class CampaignData {
       totalClicks: _toInt(clicksValue),
       isActive: map['isActive'] == true,
       ctr: _toDouble(map['ctr']),
+      imageUrl: map['imageUrl']?.toString(), // Récupération de l'URL de l'image
     );
   }
 }
