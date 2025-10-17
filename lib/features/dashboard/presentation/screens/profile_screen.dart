@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:reshare/data/models/user_model.dart';
+import 'package:reshare/features/auth/presentation/providers/security_provider.dart';
+import 'package:reshare/features/auth/presentation/screens/security_settings_screen.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -246,6 +248,11 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
+          
+          // Paramètre de sécurité (PIN)
+          _buildSecuritySettingsItem(context),
+          const Divider(height: 24),
+          
           _buildSettingsItem(
             icon: Icons.notifications_rounded,
             title: 'الإشعارات',
@@ -283,6 +290,72 @@ class ProfileScreen extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSecuritySettingsItem(BuildContext context) {
+    return Consumer<SecurityProvider>(
+      builder: (context, securityProvider, child) {
+        return FutureBuilder<bool>(
+          future: securityProvider.isPinEnabled(),
+          builder: (context, snapshot) {
+            final isPinEnabled = snapshot.data ?? false;
+            
+            return ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.lock_rounded, color: AppColors.primary, size: 20),
+              ),
+              title: const Text(
+                'الأمان والتطبيق',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Tajawal',
+                ),
+              ),
+              subtitle: Text(
+                isPinEnabled ? 'قفل التطبيق مفعل' : 'قفل التطبيق معطل',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.textSecondary,
+                  fontFamily: 'Tajawal',
+                ),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    isPinEnabled ? 'مفعل' : 'معطل',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isPinEnabled ? AppColors.success : AppColors.textSecondary,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'Tajawal',
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 16),
+                ],
+              ),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const SecuritySettingsScreen(),
+                  ),
+                );
+              },
+              contentPadding: EdgeInsets.zero,
+            );
+          },
+        );
+      },
     );
   }
 

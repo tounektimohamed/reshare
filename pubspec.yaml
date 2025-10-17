@@ -48,6 +48,8 @@ dependencies:
   syncfusion_flutter_charts: ^31.1.23
   image_picker: ^1.2.0
   cached_network_image: ^3.4.1
+  shared_preferences: ^2.5.3
+  local_auth: ^3.0.0
 
 dev_dependencies:
   flutter_test:

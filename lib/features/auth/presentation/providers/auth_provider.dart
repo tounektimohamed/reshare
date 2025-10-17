@@ -1,15 +1,19 @@
+// lib/features/auth/presentation/providers/auth_provider.dart
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:provider/provider.dart';
 
 import '../../../../core/services/cloud_functions_service.dart';
 import '../../../../core/services/firebase_service.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../../data/repositories/user_repository.dart';
+import '../providers/security_provider.dart';
 
 class AuthProvider with ChangeNotifier {
- final FirebaseService _firebaseService = FirebaseService();
+  final FirebaseService _firebaseService = FirebaseService();
   final CloudFunctionsService _cloudFunctions = CloudFunctionsService();
   final UserRepository _userRepository = UserRepository();
+  SecurityProvider? _securityProvider;
 
   UserModel? _user;
   bool _isLoading = false;
@@ -28,6 +32,11 @@ class AuthProvider with ChangeNotifier {
   bool get isAdmin => _user?.userType == UserType.admin;
   bool get isBusiness => _user?.userType == UserType.business;
   bool get isParticipant => _user?.userType == UserType.participant;
+
+  /// Définir le SecurityProvider (doit être appelé depuis le widget)
+  void setSecurityProvider(SecurityProvider securityProvider) {
+    _securityProvider = securityProvider;
+  }
 
   /// 🔥 VÉRIFIER L'ÉTAT D'AUTHENTIFICATION AU DÉMARRAGE
   Future<void> checkAuthStatus() async {
@@ -57,39 +66,39 @@ class AuthProvider with ChangeNotifier {
       print('❌ Error checking auth status: $e');
       _setError('Échec de la vérification de l\'authentification: $e');
       _authStatus = AuthStatus.error;
+      _isAuthenticated = false;
     } finally {
       _setLoading(false);
       notifyListeners();
     }
   }
+
   /// 🔥 CONNEXION AVEC EMAIL ET MOT DE PASSE
-  Future<bool> login({
-    required String email,
-    required String password,
-  }) async {
+  Future<bool> login({required String email, required String password}) async {
     try {
       _setLoading(true);
       _clearError();
 
       print('🔐 Attempting login for: $email');
 
-      final userCredential = await _firebaseService.auth.signInWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
+      final userCredential = await _firebaseService.auth
+          .signInWithEmailAndPassword(email: email.trim(), password: password);
 
       if (userCredential.user != null) {
         print('✅ Login successful: ${userCredential.user!.uid}');
         await _loadUserData(userCredential.user!.uid);
         _isAuthenticated = true;
         _authStatus = AuthStatus.authenticated;
-        
+
         // Mettre à jour la dernière connexion
         await _userRepository.updateLastLogin(userCredential.user!.uid);
-        
+
+        // Définir l'utilisateur courant dans SecurityProvider
+        _updateSecurityProviderUser(userCredential.user!.uid);
+
         return true;
       }
-      
+
       return false;
     } on FirebaseAuthException catch (e) {
       print('❌ Firebase auth error: ${e.code}');
@@ -121,10 +130,11 @@ class AuthProvider with ChangeNotifier {
       print('👤 Creating account for: $email');
 
       // 1. Créer l'utilisateur dans Firebase Auth
-      final userCredential = await _firebaseService.auth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
+      final userCredential = await _firebaseService.auth
+          .createUserWithEmailAndPassword(
+            email: email.trim(),
+            password: password,
+          );
 
       if (userCredential.user != null) {
         print('✅ Firebase auth user created: ${userCredential.user!.uid}');
@@ -142,21 +152,24 @@ class AuthProvider with ChangeNotifier {
         _isAuthenticated = true;
         _authStatus = AuthStatus.authenticated;
 
-        // 4. Traiter le code de parrainage si fourni
+        // 4. Définir l'utilisateur courant dans SecurityProvider
+        _updateSecurityProviderUser(userCredential.user!.uid);
+
+        // 5. Traiter le code de parrainage si fourni
         if (referralCode != null && referralCode.isNotEmpty) {
           await _processReferral(referralCode, newUser.id);
         }
 
-        // 5. Envoyer l'email de vérification
+        // 6. Envoyer l'email de vérification
         await _firebaseService.sendEmailVerification();
 
-        // 6. Envoyer une notification de bienvenue
+        // 7. Envoyer une notification de bienvenue
         await _sendWelcomeNotification(userType, newUser.id, displayName);
 
         print('🎉 Account creation completed successfully');
         return true;
       }
-      
+
       return false;
     } on FirebaseAuthException catch (e) {
       print('❌ Firebase auth error during registration: ${e.code}');
@@ -196,17 +209,19 @@ class AuthProvider with ChangeNotifier {
 
       // Envoyer une notification de succès si l'utilisateur est connecté
       if (_user != null) {
-        await _cloudFunctions.callFunction('sendUserNotification', parameters: {
-          'userId': _user!.id,
-          'title': 'تم إرسال رابط إعادة التعيين',
-          'body': 'تحقق من بريدك الإلكتروني لإعادة تعيين كلمة المرور',
-          'type': 'password_reset',
-        });
+        await _cloudFunctions.callFunction(
+          'sendUserNotification',
+          parameters: {
+            'userId': _user!.id,
+            'title': 'تم إرسال رابط إعادة التعيين',
+            'body': 'تحقق من بريدك الإلكتروني لإعادة تعيين كلمة المرور',
+            'type': 'password_reset',
+          },
+        );
       }
 
       print('✅ Password reset email sent successfully');
       return true;
-
     } on FirebaseAuthException catch (e) {
       print('❌ Firebase auth error during password reset: ${e.code}');
       _handleAuthError(e);
@@ -229,20 +244,38 @@ class AuthProvider with ChangeNotifier {
 
       print('🚪 Logging out user...');
 
+      final userId = _user?.id;
+
+      // 1. Réinitialiser la sécurité
+      if (_securityProvider != null) {
+        _securityProvider!.resetAuthentication();
+        if (userId != null) {
+          await _securityProvider!.clearAllSecurityData();
+        }
+      }
+
+      // 2. Appeler la déconnexion Firebase
       await _firebaseService.signOut();
-      
-      // Réinitialiser l'état
+
+      // 3. Réinitialiser l'état local
       _user = null;
       _isAuthenticated = false;
       _authStatus = AuthStatus.unauthenticated;
+      _isLoading = false;
 
-      print('✅ Logout completed successfully');
+      print('✅ Logout completed successfully for user: $userId');
 
     } catch (e) {
       print('❌ Error during logout: $e');
+
+      // Réinitialiser malgré l'erreur
+      _user = null;
+      _isAuthenticated = false;
+      _authStatus = AuthStatus.unauthenticated;
+      _isLoading = false;
+
       _setError('Échec de la déconnexion: $e');
     } finally {
-      _setLoading(false);
       notifyListeners();
     }
   }
@@ -284,16 +317,18 @@ class AuthProvider with ChangeNotifier {
       _user = updatedUser;
 
       // Envoyer une notification de succès
-      await _cloudFunctions.callFunction('sendUserNotification', parameters: {
-        'userId': _user!.id,
-        'title': 'تم تحديث الملف الشخصي بنجاح! ✅',
-        'body': 'تم حفظ التغييرات على ملفك الشخصي',
-        'type': 'profile_updated',
-      });
+      await _cloudFunctions.callFunction(
+        'sendUserNotification',
+        parameters: {
+          'userId': _user!.id,
+          'title': 'تم تحديث الملف الشخصي بنجاح! ✅',
+          'body': 'تم حفظ التغييرات على ملفك الشخصي',
+          'type': 'profile_updated',
+        },
+      );
 
       print('✅ Profile updated successfully');
       return true;
-
     } catch (e) {
       print('❌ Error updating profile: $e');
       _setError('فشل في تحديث الملف الشخصي: $e');
@@ -328,21 +363,23 @@ class AuthProvider with ChangeNotifier {
       );
 
       await user.reauthenticateWithCredential(credential);
-      
+
       // Mettre à jour le mot de passe
       await user.updatePassword(newPassword);
 
       // Envoyer une notification de succès
-      await _cloudFunctions.callFunction('sendUserNotification', parameters: {
-        'userId': user.uid,
-        'title': 'تم تحديث كلمة المرور بنجاح! 🔒',
-        'body': 'تم تغيير كلمة المرور الخاصة بحسابك',
-        'type': 'password_updated',
-      });
+      await _cloudFunctions.callFunction(
+        'sendUserNotification',
+        parameters: {
+          'userId': user.uid,
+          'title': 'تم تحديث كلمة المرور بنجاح! 🔒',
+          'body': 'تم تغيير كلمة المرور الخاصة بحسابك',
+          'type': 'password_updated',
+        },
+      );
 
       print('✅ Password updated successfully');
       return true;
-
     } on FirebaseAuthException catch (e) {
       print('❌ Firebase auth error during password update: ${e.code}');
       _handleAuthError(e);
@@ -369,7 +406,6 @@ class AuthProvider with ChangeNotifier {
 
       print('✅ Email verification sent successfully');
       return true;
-
     } catch (e) {
       print('❌ Error sending email verification: $e');
       _setError('فشل في إرسال رابط التحقق: $e');
@@ -415,16 +451,18 @@ class AuthProvider with ChangeNotifier {
       _user = updatedUser;
 
       // Envoyer une notification de succès
-      await _cloudFunctions.callFunction('sendUserNotification', parameters: {
-        'userId': _user!.id,
-        'title': 'تم الترقية إلى حساب شركة! 🏢',
-        'body': 'يمكنك الآن إنشاء حملات إعلانية',
-        'type': 'account_upgraded',
-      });
+      await _cloudFunctions.callFunction(
+        'sendUserNotification',
+        parameters: {
+          'userId': _user!.id,
+          'title': 'تم الترقية إلى حساب شركة! 🏢',
+          'body': 'يمكنك الآن إنشاء حملات إعلانية',
+          'type': 'account_upgraded',
+        },
+      );
 
       print('✅ User upgraded to business successfully');
       return true;
-
     } catch (e) {
       print('❌ Error upgrading to business: $e');
       _setError('فشل في الترقية إلى حساب شركة: $e');
@@ -439,12 +477,15 @@ class AuthProvider with ChangeNotifier {
   Future<void> _loadUserData(String userId) async {
     try {
       print('🔄 Loading user data for: $userId');
-      
+
       final userData = await _userRepository.getUserById(userId);
-      
+
       if (userData != null) {
         print('✅ User data loaded successfully: ${userData.displayName}');
         _user = userData;
+        
+        // Mettre à jour le SecurityProvider avec le nouvel utilisateur
+        _updateSecurityProviderUser(userId);
       } else {
         print('❌ User data not found, creating default profile...');
         // Créer un profil par défaut
@@ -456,11 +497,14 @@ class AuthProvider with ChangeNotifier {
             displayName: currentUser.displayName ?? 'مستخدم جديد',
           );
           _user = defaultUser;
+          
+          // Mettre à jour le SecurityProvider avec le nouvel utilisateur
+          _updateSecurityProviderUser(userId);
         }
       }
     } catch (e) {
       print('❌ Error loading user data: $e');
-      
+
       // Tenter de réparer les données corrompues
       try {
         await _userRepository.repairUserData(userId);
@@ -471,28 +515,46 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  /// Mettre à jour le SecurityProvider avec l'utilisateur courant
+  void _updateSecurityProviderUser(String userId) {
+    if (_securityProvider != null) {
+      _securityProvider!.setCurrentUser(userId);
+      print('🔐 SecurityProvider updated with user: $userId');
+    } else {
+      print('⚠️ SecurityProvider not set in AuthProvider');
+    }
+  }
+
   /// 🔥 TRAITER LE PARRAINAGE
   Future<void> _processReferral(String referralCode, String newUserId) async {
     try {
       print('🤝 Processing referral: $referralCode for new user: $newUserId');
 
-      final referrer = await _userRepository.getUserByReferralCode(referralCode);
+      final referrer = await _userRepository.getUserByReferralCode(
+        referralCode,
+      );
       if (referrer != null) {
-        await _cloudFunctions.callFunction('processReferral', parameters: {
-          'referrerId': referrer.id,
-          'newUserId': newUserId,
-          'referralCode': referralCode,
-        });
+        await _cloudFunctions.callFunction(
+          'processReferral',
+          parameters: {
+            'referrerId': referrer.id,
+            'newUserId': newUserId,
+            'referralCode': referralCode,
+          },
+        );
 
         // Augmenter le compteur de références du parraineur
         await _userRepository.incrementUserReferrals(referrer.id);
 
-        await _cloudFunctions.callFunction('sendUserNotification', parameters: {
-          'userId': referrer.id,
-          'title': 'Nouveau parrainage! 🎊',
-          'body': 'Un nouvel ami a rejoint via votre lien de parrainage',
-          'type': 'new_referral',
-        });
+        await _cloudFunctions.callFunction(
+          'sendUserNotification',
+          parameters: {
+            'userId': referrer.id,
+            'title': 'Nouveau parrainage! 🎊',
+            'body': 'Un nouvel ami a rejoint via votre lien de parrainage',
+            'type': 'new_referral',
+          },
+        );
 
         print('✅ Referral processed successfully');
       } else {
@@ -506,9 +568,9 @@ class AuthProvider with ChangeNotifier {
 
   /// 🔥 ENVOYER UNE NOTIFICATION DE BIENVENUE
   Future<void> _sendWelcomeNotification(
-    UserType userType, 
-    String userId, 
-    String displayName
+    UserType userType,
+    String userId,
+    String displayName,
   ) async {
     try {
       String welcomeTitle;
@@ -517,7 +579,8 @@ class AuthProvider with ChangeNotifier {
       switch (userType) {
         case UserType.business:
           welcomeTitle = 'Bienvenue entreprise! 🏢';
-          welcomeBody = 'Créez et gérez vos campagnes publicitaires sur ReShare';
+          welcomeBody =
+              'Créez et gérez vos campagnes publicitaires sur ReShare';
           break;
         case UserType.admin:
           welcomeTitle = 'Bienvenue administrateur! 🔧';
@@ -526,19 +589,20 @@ class AuthProvider with ChangeNotifier {
         case UserType.participant:
         default:
           welcomeTitle = 'Bienvenue sur ReShare! 🎉';
-          welcomeBody = 'Commencez à gagner de l\'argent en partageant des campagnes';
+          welcomeBody =
+              'Commencez à gagner de l\'argent en partageant des campagnes';
       }
 
-      await _cloudFunctions.callFunction('sendUserNotification', parameters: {
-        'userId': userId,
-        'title': welcomeTitle,
-        'body': welcomeBody,
-        'type': 'welcome',
-        'data': {
-          'displayName': displayName,
-          'userType': userType.name,
+      await _cloudFunctions.callFunction(
+        'sendUserNotification',
+        parameters: {
+          'userId': userId,
+          'title': welcomeTitle,
+          'body': welcomeBody,
+          'type': 'welcome',
+          'data': {'displayName': displayName, 'userType': userType.name},
         },
-      });
+      );
 
       print('✅ Welcome notification sent');
     } catch (e) {
@@ -550,7 +614,7 @@ class AuthProvider with ChangeNotifier {
   /// 🔥 GÉRER LES ERREURS D'AUTHENTIFICATION
   void _handleAuthError(FirebaseAuthException e) {
     print('🔐 Auth error: ${e.code} - ${e.message}');
-    
+
     switch (e.code) {
       case 'user-not-found':
         _setError('البريد الإلكتروني غير مسجل');
@@ -619,7 +683,8 @@ class AuthProvider with ChangeNotifier {
 
   /// VÉRIFIER L'ACCÈS AUX FONCTIONNALITÉS BUSINESS
   bool canAccessBusinessFeatures() {
-    return _user?.userType == UserType.business || _user?.userType == UserType.admin;
+    return _user?.userType == UserType.business ||
+        _user?.userType == UserType.admin;
   }
 
   /// MÉTHODES UTILITAIRES POUR LA GESTION D'ÉTAT
@@ -648,8 +713,8 @@ class AuthProvider with ChangeNotifier {
 
 /// ÉTATS D'AUTHENTIFICATION
 enum AuthStatus {
-  checking,        // Vérification en cours
-  authenticated,   // Connecté
+  checking, // Vérification en cours
+  authenticated, // Connecté
   unauthenticated, // Non connecté
-  error,           // Erreur
+  error, // Erreur
 }

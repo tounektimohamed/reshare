@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:reshare/features/auth/presentation/providers/security_provider.dart';
 
 import 'app.dart';
 import 'firebase_options.dart';
@@ -91,7 +92,9 @@ class ReShareApp extends StatelessWidget {
         ChangeNotifierProvider<AuthProvider>(
           create: (_) => AuthProvider(),
         ),
-        
+         ChangeNotifierProvider<SecurityProvider>(
+      create: (_) => SecurityProvider(),
+    ),
         // Dashboard Provider (dépend de AuthProvider)
         ChangeNotifierProxyProvider<AuthProvider, DashboardProvider>(
           create: (_) => DashboardProvider(),
