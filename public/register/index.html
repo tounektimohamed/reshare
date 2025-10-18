@@ -357,14 +357,12 @@
             </div>
         </div>
 
-        <button class="btn" onclick="openApp()">
+        <button class="btn" onclick="openAppWithoutReferral()">
             📱 إنشاء حساب جديد مع كود الإحالة
         </button>
         
-        <button class="btn btn-secondary" onclick="openAppWithoutReferral()">
-            متابعة بدون كود الإحالة
-        </button>
-
+       
+        
         <div class="loading" id="loading">
             <div class="spinner"></div>
             <p class="loading-text">جاري التوجيه إلى تطبيق ReShare...</p>
@@ -418,23 +416,7 @@
         }
 
         // فتح التطبيق مع كود الإحالة
-        function openApp() {
-            const referralCode = getReferralCode();
-            showLoading();
-            
-            // رابط التطبيق Flutter مع معلمات deep link
-            let appUrl = 'https://reshare-ten.vercel.app/';
-            
-            if (referralCode && referralCode.trim() !== '') {
-                appUrl += `&referralCode=${encodeURIComponent(referralCode)}`;
-                console.log('فتح التطبيق مع كود الإحالة:', referralCode);
-            }
-
-            // تأخير لإظهار رسالة التحميل
-            setTimeout(() => {
-                window.location.href = appUrl;
-            }, 1500);
-        }
+        
 
         // فتح التطبيق بدون كود الإحالة
         function openAppWithoutReferral() {

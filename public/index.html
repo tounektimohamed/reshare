@@ -3,97 +3,92 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ReShare - مشاركة الربح</title>
+    <title>ReShare - أرباح من مشاركة الحملات الإعلانية</title>
+    <script>
+        // 🔥 CORRECTION - Redirection automatique si paramètres présents
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const route = urlParams.get('route');
+            const screen = urlParams.get('screen');
+            const ref = urlParams.get('referralCode') || urlParams.get('ref');
+            
+            // Si on a un paramètre d'inscription, rediriger vers la page d'inscription
+            if (route === 'register' || screen === 'register') {
+                let redirectUrl = '/register';
+                if (ref) {
+                    redirectUrl += `?ref=${encodeURIComponent(ref)}`;
+                }
+                window.location.href = redirectUrl;
+                return;
+            }
+        });
+    </script>
     <style>
+        /* Votre CSS existant */
         body {
-            font-family: 'Tajawal', Arial, sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             margin: 0;
-            padding: 0;
+            padding: 20px;
             display: flex;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
-            color: #333;
+            text-align: center;
+            color: white;
+            line-height: 1.6;
         }
         .container {
-            background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            text-align: center;
-            max-width: 500px;
-            width: 90%;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            padding: 50px 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            max-width: 600px;
+            width: 100%;
         }
         .logo {
-            font-size: 2.5em;
+            font-size: 4em;
             margin-bottom: 20px;
         }
         h1 {
-            color: #4a5568;
-            margin-bottom: 10px;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+            font-weight: 700;
         }
         p {
-            color: #718096;
-            line-height: 1.6;
-            margin-bottom: 20px;
+            font-size: 1.3em;
+            margin-bottom: 30px;
+            opacity: 0.9;
         }
         .btn {
-            background: #667eea;
-            color: white;
-            padding: 12px 30px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
+            background: white;
+            color: #667eea;
+            padding: 18px 35px;
+            border-radius: 50px;
             text-decoration: none;
+            font-weight: bold;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
             display: inline-block;
-            transition: background 0.3s;
+            margin: 10px;
         }
         .btn:hover {
-            background: #5a6fd8;
-        }
-        .features {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin: 30px 0;
-        }
-        .feature {
-            background: #f7fafc;
-            padding: 15px;
-            border-radius: 8px;
-            border-left: 4px solid #667eea;
+            transform: translateY(-3px);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.2);
         }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="logo">🚀</div>
-        <h1>مرحباً بك في ReShare</h1>
-        <p>منصة مشاركة الربح الأولى - شارك الحملات واربح مع كل نقرة</p>
+        <h1>ReShare - ريشير</h1>
+        <p>منصة رائدة لتحقيق دخل إضافي من خلال مشاركة الحملات الإعلانية</p>
         
-        <div class="features">
-            <div class="feature">
-                <strong>💰 أرباح حقيقية</strong>
-                <p>اربح مع كل مشاركة ناجحة</p>
-            </div>
-            <div class="feature">
-                <strong>🚀 سهولة الاستخدام</strong>
-                <p>شارك وراقب أرباحك</p>
-            </div>
-            <div class="feature">
-                <strong>📊 إحصائيات مباشرة</strong>
-                <p>تتبع أداء مشاركاتك</p>
-            </div>
-            <div class="feature">
-                <strong>🔗 روقات تتبع</strong>
-                <p>روقات ذكية لتتبع النقرات</p>
-            </div>
+        <div>
+            <a href="https://reshare-ten.vercel.app" class="btn">🎯 إنشاء حساب جديد</a>
+            <a href="https://reshare-ten.vercel.app" class="btn">📱 فتح التطبيق</a>
         </div>
-        
-        <p>التطبيق قيد التطوير - سيتم إطلاقه قريباً!</p>
-        <a href="#" class="btn">تواصل معنا</a>
     </div>
 </body>
 </html>

@@ -28,6 +28,14 @@
         "destination": "/register/index.html"
       },
       {
+        "source": "/signup",
+        "destination": "/register/index.html"
+      },
+      {
+        "source": "/join",
+        "destination": "/register/index.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }
@@ -45,20 +53,7 @@
             "value": "nosniff"
           }
         ]
-      },
-      {
-        "source": "**/*.html",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-cache, no-store, must-revalidate"
-          }
-        ]
       }
     ]
-  },
-  "functions": {
-    "source": "functions",
-    "runtime": "nodejs18"
   }
 }
