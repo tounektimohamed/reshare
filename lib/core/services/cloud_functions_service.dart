@@ -607,71 +607,72 @@ class CloudFunctionsService {
   }
 
   // ============ FALLBACK SYSTEM ============
+Map<String, dynamic> _getFallbackData(
+  String functionName,
+  Map<String, dynamic>? parameters,
+) {
+  print('Using fallback for function: $functionName');
 
-  Map<String, dynamic> _getFallbackData(
-    String functionName,
-    Map<String, dynamic>? parameters,
-  ) {
-    print('Using fallback for function: $functionName');
+  // 🔥 CORRECTION - Domaine uniformisé
+  const String APP_BASE_URL = "https://scoutapk.web.app";
 
-    switch (functionName) {
-      case 'getDashboardData':
-        return _getFallbackDashboardData();
+  switch (functionName) {
+    case 'getDashboardData':
+      return _getFallbackDashboardData();
 
-      case 'getRecommendedCampaigns':
-        final limit = parameters?['limit'] ?? 5;
-        return _getFallbackRecommendedCampaigns(limit);
+    case 'getRecommendedCampaigns':
+      final limit = parameters?['limit'] ?? 5;
+      return _getFallbackRecommendedCampaigns(limit);
 
-      case 'getAvailableCampaigns':
-        final limit = parameters?['limit'] ?? 10;
-        final page = parameters?['page'] ?? 1;
-        return _getFallbackAvailableCampaigns(limit, page);
+    case 'getAvailableCampaigns':
+      final limit = parameters?['limit'] ?? 10;
+      final page = parameters?['page'] ?? 1;
+      return _getFallbackAvailableCampaigns(limit, page);
 
-      case 'getUserStats':
-        return _getFallbackUserStats();
+    case 'getUserStats':
+      return _getFallbackUserStats();
 
-      case 'getFraudDetectionStats':
-        return _getFallbackFraudStats();
+    case 'getFraudDetectionStats':
+      return _getFallbackFraudStats();
 
-      case 'createCampaignIntent':
-        return {
-          'success': true,
-          'paymentUrl': 'https://example.com/payment-fallback',
-          'paymentId':
-              'fallback_payment_${DateTime.now().millisecondsSinceEpoch}',
-          'orderId': 'fallback_order_${DateTime.now().millisecondsSinceEpoch}',
-          'usingFallback': true,
-        };
+    case 'createCampaignIntent':
+      return {
+        'success': true,
+        'paymentUrl': 'https://example.com/payment-fallback',
+        'paymentId': 'fallback_payment_${DateTime.now().millisecondsSinceEpoch}',
+        'orderId': 'fallback_order_${DateTime.now().millisecondsSinceEpoch}',
+        'usingFallback': true,
+      };
 
-      case 'generateTrackingLink':
-        return {
-          'success': true,
-          'trackingLink':
-              'https://reshare.tn/click?c=fallback_campaign&s=fallback_share',
-          'shareId': 'fallback_share_${DateTime.now().millisecondsSinceEpoch}',
-          'campaignTitle': 'حملة تجريبية',
-          'usingFallback': true,
-        };
+    case 'generateTrackingLink':
+      return {
+        'success': true,
+        // 🔥 CORRECTION - Même domaine que la fonction réelle
+        'trackingLink': '$APP_BASE_URL/click?c=fallback_campaign&s=fallback_share',
+        'shareId': 'fallback_share_${DateTime.now().millisecondsSinceEpoch}',
+        'campaignTitle': 'حملة تجريبية',
+        'usingFallback': true,
+      };
 
-      case 'clickHandler':
-        return _getFallbackClickHandler(parameters);
+    case 'clickHandler':
+      return _getFallbackClickHandler(parameters);
 
-      case 'testFunction':
-        return {
-          'success': true,
-          'message': 'Fallback mode active - Cloud Functions not deployed',
-          'timestamp': DateTime.now().toIso8601String(),
-          'usingFallback': true,
-        };
+    case 'testFunction':
+      return {
+        'success': true,
+        'message': 'Fallback mode active - Cloud Functions not deployed',
+        'timestamp': DateTime.now().toIso8601String(),
+        'usingFallback': true,
+      };
 
-      default:
-        return {
-          'success': false,
-          'error': 'الدالة غير متاحة حالياً',
-          'usingFallback': true,
-        };
-    }
+    default:
+      return {
+        'success': false,
+        'error': 'الدالة غير متاحة حالياً',
+        'usingFallback': true,
+      };
   }
+}
 
   Map<String, dynamic> _getFallbackClickHandler(
     Map<String, dynamic>? parameters,

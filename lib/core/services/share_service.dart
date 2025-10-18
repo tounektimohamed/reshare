@@ -10,6 +10,9 @@ class ShareService {
   factory ShareService() => _instance;
   ShareService._internal();
 
+  // 🔥 NOUVEAU - Constante pour le domaine uniformisé
+  static const String APP_BASE_URL = "https://scoutapk.web.app";
+
   /// مشاركة حملة إعلانية
   Future<bool> shareCampaign({
     required CampaignModel campaign,
@@ -58,7 +61,9 @@ ${campaign.description}
     String? customMessage,
   }) async {
     try {
-      final message = customMessage ?? _generateReferralShareMessage(referralLink, referralCode);
+      // 🔥 NOUVEAU - Utiliser le nouveau lien de parrainage
+      final updatedReferralLink = '$APP_BASE_URL/register?ref=$referralCode';
+      final message = customMessage ?? _generateReferralShareMessage(updatedReferralLink, referralCode);
 
       await Share.share(
         message,
@@ -104,7 +109,8 @@ ${_shortenUrl(referralLink)}
     String? customMessage,
   }) async {
     try {
-      final referralLink = 'https://reshare.tn/register?ref=$referralCode';
+      // 🔥 NOUVEAU - Utiliser le nouveau lien de parrainage
+      final referralLink = '$APP_BASE_URL/register?ref=$referralCode';
       final message = customMessage ?? _generateInvitationMessage(referralCode, referralLink);
 
       switch (platform.toLowerCase()) {
@@ -140,7 +146,7 @@ ${_shortenUrl(referralLink)}
 
 أود دعوتك للانضمام إلى ReShare، منصة رائعة لتحقيق دخل إضافي من خلال مشاركة الحملات الإعلانية.
 
-🎯 لماذا ReShare؟
+🎯 لماذا ReShare?
 • أرباح حقيقية من كل نقرة
 • حملات متنوعة يومياً
 • سحب أموال سهل وآمن
@@ -212,7 +218,7 @@ $referralLink
   /// المشاركة عبر تليجرام
   Future<bool> _shareViaTelegram(String username, String message) async {
     try {
-      final url = 'https://t.me/share/url?url=${Uri.encodeComponent('https://reshare.tn')}&text=${Uri.encodeComponent(message)}';
+      final url = 'https://t.me/share/url?url=${Uri.encodeComponent('$APP_BASE_URL/register')}&text=${Uri.encodeComponent(message)}';
       
       if (await canLaunchUrl(Uri.parse(url))) {
         await launchUrl(Uri.parse(url));
@@ -228,7 +234,7 @@ $referralLink
   /// المشاركة عبر فيسبوك
   Future<bool> _shareViaFacebook(String message) async {
     try {
-      final url = 'https://www.facebook.com/sharer/sharer.php?u=${Uri.encodeComponent('https://reshare.tn')}&quote=${Uri.encodeComponent(message)}';
+      final url = 'https://www.facebook.com/sharer/sharer.php?u=${Uri.encodeComponent('$APP_BASE_URL/register')}&quote=${Uri.encodeComponent(message)}';
       
       if (await canLaunchUrl(Uri.parse(url))) {
         await launchUrl(Uri.parse(url));
@@ -325,7 +331,7 @@ $referralLink
 ReShare تطبيق رائع لتحقيق دخل إضافي من خلال مشاركة الحملات الإعلانية.
 
 ✨ جربها بنفسك:
-https://reshare.tn
+$APP_BASE_URL
 
 ✅ أرباح حقيقية
 ✅ سحب أموال سهل
@@ -374,7 +380,7 @@ https://reshare.tn
 ReShare منصة رائعة لتحقيق دخل إضافي من خلال مشاركة الحملات الإعلانية.
 
 🔗 انضم الآن وابدأ رحلتك:
-https://reshare.tn
+$APP_BASE_URL
 
 #ReShare #إحصائيات_الأداء #ربح_من_الإنترنت
 ''';
@@ -417,7 +423,7 @@ ReShare تطبيق رائع لا يمكنك من تحقيق أرباح من مش
 • حملات متنوعة يومياً
 
 🔗 انضم الآن:
-https://reshare.tn
+$APP_BASE_URL
 
 #ReShare #مكافأة_الإحالة #ربح_مع_الأصدقاء
 ''';
@@ -596,7 +602,7 @@ ${_shortenUrl(shareLink)}
   /// مشاركة تطبيق ReShare
   Future<bool> shareApp() async {
     try {
-      const message = '''
+      final message = '''
 📱 حمل تطبيق ReShare الآن!
 
 تطبيق رائع لتحقيق دخل إضافي من خلال مشاركة الحملات الإعلانية.
@@ -608,7 +614,7 @@ ${_shortenUrl(shareLink)}
 ✅ نظام إحالة بمكافآت
 
 🔗 حمل التطبيق الآن:
-https://reshare.tn/download
+$APP_BASE_URL
 
 #ReShare #دخل_إضافي #تطبيق_ربح
 ''';
@@ -636,7 +642,7 @@ https://reshare.tn/download
 ReShare تطبيق موثوق لتحقيق دخل إضافي وسحب الأموال بسهولة.
 
 🔗 جرب التطبيق:
-https://reshare.tn
+$APP_BASE_URL
 
 #ReShare #سحب_ناجح #ربح_حقيقي
 ''';

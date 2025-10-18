@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>انضم إلى ReShare - تسجيل حساب جديد</title>
+    <meta name="description" content="انضم إلى ReShare وابدأ رحلة الأرباح من خلال مشاركة الحملات الإعلانية">
+    <meta name="keywords" content="ReShare, أرباح, تسويق, إحالة, مشاركة, حملات إعلانية">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            line-height: 1.6;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            animation: fadeIn 0.8s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .logo {
+            width: 100px;
+            height: 100px;
+            margin: 0 auto 25px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 32px;
+            font-weight: bold;
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 32px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 18px;
+            line-height: 1.5;
+        }
+
+        .referral-badge {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border: 2px dashed #667eea;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .referral-badge::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(102, 126, 234, 0.1), transparent);
+            animation: shine 3s infinite;
+        }
+
+        @keyframes shine {
+            0% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
+            100% { transform: translateX(100%) translateY(100%) rotate(45deg); }
+        }
+
+        .referral-label {
+            font-size: 14px;
+            color: #667eea;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .referral-code {
+            font-size: 28px;
+            font-weight: bold;
+            color: #2d3748;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            background: white;
+            padding: 10px 15px;
+            border-radius: 10px;
+            border: 2px solid #e2e8f0;
+            direction: ltr;
+        }
+
+        .referral-note {
+            color: #718096;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .features {
+            text-align: right;
+            margin: 30px 0;
+            background: #f7fafc;
+            padding: 25px;
+            border-radius: 15px;
+            border-right: 4px solid #667eea;
+        }
+
+        .feature {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding: 12px;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease;
+        }
+
+        .feature:hover {
+            transform: translateX(-5px);
+        }
+
+        .feature:last-child {
+            margin-bottom: 0;
+        }
+
+        .feature-text {
+            color: #2d3748;
+            font-size: 15px;
+            font-weight: 500;
+            flex: 1;
+            text-align: right;
+            margin-right: 10px;
+        }
+
+        .feature-icon {
+            color: #48bb78;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 18px 30px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: left 0.5s;
+        }
+
+        .btn:hover::before {
+            left: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn:active {
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid #667eea;
+        }
+
+        .btn-secondary:hover {
+            background: #667eea;
+            color: white;
+        }
+
+        .loading {
+            display: none;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+
+        .loading-text {
+            color: #667eea;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .app-info {
+            margin-top: 25px;
+            padding-top: 25px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .app-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            display: block;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #718096;
+            margin-top: 5px;
+        }
+
+        .security-badge {
+            background: #f0fff4;
+            border: 1px solid #9ae6b4;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .security-text {
+            color: #38a169;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                padding: 25px;
+                margin: 10px;
+            }
+            
+            h1 {
+                font-size: 26px;
+            }
+            
+            .subtitle {
+                font-size: 16px;
+            }
+            
+            .referral-code {
+                font-size: 22px;
+            }
+            
+            .btn {
+                padding: 16px 25px;
+                font-size: 16px;
+            }
+            
+            .app-stats {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+
+        /* Animation pour le code de parrainage */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .referral-code.highlight {
+            animation: pulse 2s infinite;
+            border-color: #667eea;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">RS</div>
+        
+        <h1>انضم إلى ReShare 🚀</h1>
+        <p class="subtitle">ابدأ رحلتك نحو تحقيق دخل إضافي من خلال مشاركة الحملات الإعلانية</p>
+
+        <div class="referral-badge">
+            <div class="referral-label">دعوة خاصة من صديقك 🎁</div>
+            <div class="referral-code" id="referralCode">جاري التحميل...</div>
+            <p class="referral-note">سيتم تعبئة كود الإحالة تلقائياً في تطبيق ReShare</p>
+        </div>
+
+        <div class="features">
+            <div class="feature">
+                <span class="feature-text">💰 أرباح حقيقية من مشاركة الحملات</span>
+                <span class="feature-icon">✓</span>
+            </div>
+            <div class="feature">
+                <span class="feature-text">🚀 حملات متنوعة ومحدثة يومياً</span>
+                <span class="feature-icon">✓</span>
+            </div>
+            <div class="feature">
+                <span class="feature-text">💳 سحب أموال سهل وآمن</span>
+                <span class="feature-icon">✓</span>
+            </div>
+            <div class="feature">
+                <span class="feature-text">👥 نظام إحالة بمكافآت مميزة</span>
+                <span class="feature-icon">✓</span>
+            </div>
+        </div>
+
+        <button class="btn" onclick="openApp()">
+            📱 إنشاء حساب جديد مع كود الإحالة
+        </button>
+        
+        <button class="btn btn-secondary" onclick="openAppWithoutReferral()">
+            متابعة بدون كود الإحالة
+        </button>
+
+        <div class="loading" id="loading">
+            <div class="spinner"></div>
+            <p class="loading-text">جاري التوجيه إلى تطبيق ReShare...</p>
+        </div>
+
+        <div class="app-info">
+            <div class="app-stats">
+                <div class="stat">
+                    <span class="stat-number" id="usersCount">10K+</span>
+                    <span class="stat-label">مستخدم نشط</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number" id="earningsCount">50K+</span>
+                    <span class="stat-label">دينار أرباح</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-number" id="campaignsCount">500+</span>
+                    <span class="stat-label">حملة نشطة</span>
+                </div>
+            </div>
+            
+            <div class="security-badge">
+                <span class="security-text">🔒 نظام آمن وموثوق - مدفوعات محمية</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // استخراج كود الإحالة من الرابط
+        function getReferralCode() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('ref');
+        }
+
+        // عرض كود الإحالة مع تأثيرات
+        function displayReferralCode() {
+            const referralCode = getReferralCode();
+            const codeElement = document.getElementById('referralCode');
+            
+            if (referralCode && referralCode.trim() !== '') {
+                codeElement.textContent = referralCode;
+                codeElement.style.color = '#2d3748';
+                codeElement.classList.add('highlight');
+                
+                // تخزين الكود في localStorage للاستخدام لاحقاً
+                localStorage.setItem('referralCode', referralCode);
+            } else {
+                codeElement.textContent = 'لا يوجد كود إحالة';
+                codeElement.style.color = '#e53e3e';
+            }
+        }
+
+        // فتح التطبيق مع كود الإحالة
+        function openApp() {
+            const referralCode = getReferralCode();
+            showLoading();
+            
+            // رابط التطبيق Flutter مع معلمات deep link
+            let appUrl = 'https://scoutapk.web.app/?route=register';
+            
+            if (referralCode && referralCode.trim() !== '') {
+                appUrl += `&referralCode=${encodeURIComponent(referralCode)}`;
+                console.log('فتح التطبيق مع كود الإحالة:', referralCode);
+            }
+
+            // تأخير لإظهار رسالة التحميل
+            setTimeout(() => {
+                window.location.href = appUrl;
+            }, 1500);
+        }
+
+        // فتح التطبيق بدون كود الإحالة
+        function openAppWithoutReferral() {
+            showLoading();
+            console.log('فتح التطبيق بدون كود الإحالة');
+            
+            setTimeout(() => {
+                window.location.href = 'https://scoutapk.web.app/?route=register';
+            }, 1500);
+        }
+
+        // عرض رسالة التحميل
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            
+            // تعطيل الأزرار أثناء التحميل
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(btn => {
+                btn.disabled = true;
+                btn.style.opacity = '0.7';
+                btn.style.cursor = 'not-allowed';
+            });
+        }
+
+        // محاكاة إحصائيات التطبيق
+        function simulateAppStats() {
+            const stats = [
+                { element: 'usersCount', value: '10K+' },
+                { element: 'earningsCount', value: '50K+' },
+                { element: 'campaignsCount', value: '500+' }
+            ];
+            
+            stats.forEach(stat => {
+                const element = document.getElementById(stat.element);
+                if (element) {
+                    element.textContent = stat.value;
+                }
+            });
+        }
+
+        // نسخ كود الإحالة (وظيفة إضافية)
+        function copyReferralCode() {
+            const referralCode = getReferralCode();
+            if (referralCode) {
+                navigator.clipboard.writeText(referralCode).then(() => {
+                    alert('تم نسخ كود الإحالة: ' + referralCode);
+                }).catch(err => {
+                    console.error('فشل في نسخ الكود:', err);
+                });
+            }
+        }
+
+        // التهيئة عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('صفحة التسجيل جاهزة');
+            
+            displayReferralCode();
+            simulateAppStats();
+            
+            // إضافة event listener للنسخ عند النقر على الكود
+            const codeElement = document.getElementById('referralCode');
+            codeElement.addEventListener('click', copyReferralCode);
+            
+            // فحص إذا كان على جهاز محمول
+            if (/Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)) {
+                console.log('جهاز محمول - جاهز للتوجيه إلى التطبيق');
+            } else {
+                console.log('جهاز سطح المكتب - يمكن فتح التطبيق في نافذة جديدة');
+            }
+
+            // تتبع التحليلات (يمكن إضافة Google Analytics هنا)
+            console.log('كود الإحالة المستخدم:', getReferralCode());
+        });
+
+        // التعامل مع أخطاء التحميل
+        window.addEventListener('error', function(e) {
+            console.error('حدث خطأ:', e.error);
+            document.getElementById('loading').style.display = 'none';
+            
+            // إعادة تمكين الأزرار
+            const buttons = document.querySelectorAll('.btn');
+            buttons.forEach(btn => {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+                btn.style.cursor = 'pointer';
+            });
+        });
+    </script>
+</body>
+</html>

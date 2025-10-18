@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../data/models/referral_model.dart';
 import '../../../../data/models/user_model.dart';
@@ -43,7 +44,8 @@ class ReferralProvider with ChangeNotifier {
       _startRealTimeUpdates();
     }
   }
-int get invalidReferralsCount {
+
+  int get invalidReferralsCount {
     return _referrals.where((referral) => 
       referral.status == ReferralStatus.expired || 
       referral.status == ReferralStatus.cancelled
@@ -68,7 +70,8 @@ int get invalidReferralsCount {
       'invalid': invalidReferralsCount,
     };
   }
-Future<void> _syncReferralCount() async {
+
+  Future<void> _syncReferralCount() async {
     if (_authProvider?.user == null) return;
 
     try {
@@ -191,8 +194,8 @@ Future<void> _syncReferralCount() async {
         return;
       }
 
-      // Générer le lien de parrainage
-      final referralLink = 'https://reshare.tn/register?ref=$referralCode';
+      // 🔥 NOUVEAU - Utiliser le nouveau lien de parrainage
+      final referralLink = 'https://scoutapk.web.app/register?ref=$referralCode';
 
       // Partager le lien
       final shared = await _shareService.shareReferralLink(
@@ -243,10 +246,11 @@ Future<void> _syncReferralCount() async {
         return;
       }
 
-      final referralLink = 'https://reshare.tn/register?ref=$referralCode';
+      // 🔥 NOUVEAU - Utiliser le nouveau lien de parrainage
+      final referralLink = 'https://scoutapk.web.app/register?ref=$referralCode';
       
       // Copier dans le presse-papiers
-      // await Clipboard.setData(ClipboardData(text: referralLink));
+      await Clipboard.setData(ClipboardData(text: referralLink));
 
       _shareMessage = 'تم نسخ رابط الإحالة إلى الحافظة! 📋';
       notifyListeners();
@@ -486,7 +490,6 @@ Future<void> _syncReferralCount() async {
     notifyListeners();
   });
 }
-
 
   /// Actualiser les données de parrainage
   Future<void> refreshReferrals() async {
