@@ -1,744 +1,531 @@
-// // lib/features/marketplace/presentation/providers/marketplace_provider.dart
-// import 'package:flutter/foundation.dart';
-// import 'package:flutter/material.dart';
-// import 'dart:io';
-// import 'package:reshare/data/models/user_model.dart';
-// import '../../../../data/models/product_model.dart';
-// import '../../../../data/repositories/product_repository.dart';
-// import '../../../../core/services/cloud_functions_service.dart';
-// import '../../../../core/services/share_service.dart';
-// import '../../../auth/presentation/providers/auth_provider.dart';
+// === lib/features/marketplace/presentation/providers/marketplace_provider.dart ===
 
-// class MarketplaceProvider with ChangeNotifier {
-//   final ProductRepository _productRepository;
-//   final CloudFunctionsService _cloudFunctions;
-//   final ShareService _shareService;
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:reshare/data/models/campaign_model.dart';
+import 'package:reshare/data/models/marketplace_campaign_model.dart';
+import 'package:reshare/data/repositories/campaign_repository.dart';
+import 'package:reshare/core/services/share_service.dart';
+import 'package:reshare/features/auth/presentation/providers/auth_provider.dart';
+import 'package:reshare/core/services/location_service.dart';
+import 'package:reshare/core/services/cloud_functions_service.dart';
 
-//   AuthProvider? _authProvider;
+class MarketplaceProvider with ChangeNotifier {
+  final CampaignRepository _campaignRepository = CampaignRepository();
+  final ShareService _shareService = ShareService();
+  final LocationService _locationService = LocationService();
+  final CloudFunctionsService _cloudFunctions = CloudFunctionsService();
 
-//   // État du provider
-//   List<ProductModel> _products = [];
-//   List<ProductModel> _sponsoredProducts = [];
-//   List<ProductModel> _sellerProducts = [];
-//   ProductModel? _selectedProduct;
-//   bool _isLoading = false;
-//   String? _error;
-//   String _selectedCategory = 'الكل';
-//   ProductType _selectedType = ProductType.cpc;
-//   MarketplaceFilter _filter = MarketplaceFilter();
+  AuthProvider? _authProvider;
 
-//   MarketplaceProvider({
-//     required ProductRepository productRepository,
-//     required CloudFunctionsService cloudFunctions,
-//     required ShareService shareService,
-//   })  : _productRepository = productRepository,
-//         _cloudFunctions = cloudFunctions,
-//         _shareService = shareService;
+  // État du provider
+  List<MarketplaceCampaignModel> _availableCampaigns = [];
+  List<MarketplaceCampaignModel> _filteredCampaigns = [];
+  bool _isLoading = false;
+  String? _error;
 
-//   // Getters
-//   List<ProductModel> get products => _products;
-//   List<ProductModel> get sponsoredProducts => _sponsoredProducts;
-//   List<ProductModel> get sellerProducts => _sellerProducts;
-//   ProductModel? get selectedProduct => _selectedProduct;
-//   bool get isLoading => _isLoading;
-//   String? get error => _error;
-//   String get selectedCategory => _selectedCategory;
-//   ProductType get selectedType => _selectedType;
-//   MarketplaceFilter get filter => _filter;
+  // Getters
+  List<MarketplaceCampaignModel> get availableCampaigns => _filteredCampaigns;
+  List<MarketplaceCampaignModel> get featuredCampaigns =>
+      _availableCampaigns.where((c) => c.isFeatured).toList();
+  List<MarketplaceCampaignModel> get trendingCampaigns =>
+      _availableCampaigns.where((c) => c.isTrending).toList();
+  bool get isLoading => _isLoading;
+  String? get error => _error;
 
-//   /// Mettre à jour le provider d'authentification
-//   void updateAuth(AuthProvider authProvider) {
-//     _authProvider = authProvider;
-//     if (authProvider.isAuthenticated) {
-//       loadMarketplaceProducts();
-//       _loadSellerProducts();
-//     }
-//   }
+  /// Mettre à jour le provider d'authentification
+  void updateAuth(AuthProvider authProvider) {
+    _authProvider = authProvider;
+    if (authProvider.isAuthenticated && authProvider.user != null) {
+      loadMarketplaceCampaigns();
+      _startRealTimeUpdates();
+    }
+  }
 
-//   /// Charger les produits du marketplace
-//   Future<void> loadMarketplaceProducts() async {
-//     if (_authProvider?.user == null) return;
+  /// Charger les campagnes de la marketplace
+  Future<void> loadMarketplaceCampaigns() async {
+    if (_authProvider?.user == null) return;
 
-//     try {
-//       _setLoading(true);
-//       _clearError();
+    try {
+      _setLoading(true);
+      _clearError();
 
-//       _products = await _productRepository.getActiveProducts(
-//         category: _selectedCategory == 'الكل' ? null : _selectedCategory,
-//         type: _selectedType,
-//       );
-
-//       // Filtrer les produits sponsorisés
-//       _sponsoredProducts = _products.where((p) => p.isSponsored).toList();
-
-//       // Appliquer les filtres supplémentaires
-//       _applyFilters();
-
-//     } catch (e) {
-//       _setError('فشل في تحميل المنتجات: $e');
-//     } finally {
-//       _setLoading(false);
-//       notifyListeners();
-//     }
-//   }
-
-//   /// Charger les produits du vendeur
-//   Future<void> _loadSellerProducts() async {
-//     try {
-//       final user = _authProvider!.user!;
+      final user = _authProvider!.user!;
       
-//       if (user.userType == UserType.business || user.userType == UserType.admin) {
-//         _sellerProducts = await _productRepository.getSellerProducts(user.id);
-//       }
-//     } catch (e) {
-//       print('فشل في تحميل منتجات البائع: $e');
-//     }
-//   }
-
-//   /// Ajouter un nouveau produit
-//   Future<void> addProduct(ProductModel product) async {
-//     if (_authProvider?.user == null) return;
-
-//     try {
-//       _setLoading(true);
-//       _clearError();
-
-//       // Vérifier le solde pour les produits marketplace
-//       if (product.isMarketplace && _authProvider!.user!.availableBalance < product.marketplaceFee) {
-//         _setError('الرصيد غير كافي لرسوم السوق');
-//         return;
-//       }
-
-//       await _productRepository.createProduct(product);
-
-//       // Déduire les frais du marketplace via Cloud Function
-//       if (product.isMarketplace) {
-//         await _productRepository.updateUserBalanceCloud(
-//           userId: _authProvider!.user!.id,
-//           amount: -product.marketplaceFee,
-//           transactionType: 'marketplace_fee',
-//           description: 'رسوم عرض المنتج "${product.title}" في السوق',
-//         );
-//       }
-
-//       // Recharger les produits
-//       await _loadSellerProducts();
-//       await loadMarketplaceProducts();
-
-//       // Envoyer une notification
-//       await _cloudFunctions.sendUserNotification(
-//         userId: _authProvider!.user!.id,
-//         title: 'تم إضافة المنتج بنجاح! 🎉',
-//         body: 'منتج "${product.title}" جاهز للعرض',
-//         type: 'product_added',
-//       );
-
-//     } catch (e) {
-//       _setError('فشل في إضافة المنتج: $e');
-//     } finally {
-//       _setLoading(false);
-//       notifyListeners();
-//     }
-//   }
-
-//   /// 🎯 INTERAGIR AVEC UN PRODUIT - AVEC SYSTÈME CLOUD COMPLET
-//   Future<Map<String, dynamic>> interactWithProduct({
-//     required String productId,
-//     required ProductInteractionType interactionType,
-//   }) async {
-//     if (_authProvider?.user == null) {
-//       return {'success': false, 'error': 'يجب تسجيل الدخول أولاً'};
-//     }
-
-//     try {
-//       final product = await _productRepository.getProductById(productId);
-//       if (product == null) {
-//         return {'success': false, 'error': 'المنتج غير موجود'};
-//       }
-
-//       // 🔍 Préparer les données pour la détection de fraude
-//       final deviceInfo = await _getDeviceInfo();
-//       final userLocation = await _getUserLocation();
-
-//       // 📊 Traiter l'interaction via Cloud Functions avec détection de fraude
-//       final cloudResult = await _productRepository.recordInteractionCloud(
-//         productId: productId,
-//         userId: _authProvider!.user!.id,
-//         userAgent: deviceInfo['userAgent'] ?? 'Unknown',
-//         deviceHash: deviceInfo['deviceHash'] ?? _authProvider!.user!.id,
-//         locationData: userLocation,
-//       );
-
-//       if (!cloudResult['success']) {
-//         return {'success': false, 'error': cloudResult['error'] ?? 'فشل في معالجة التفاعل'};
-//       }
-
-//       // 💰 Calculer les gains selon le type d'interaction
-//       final earnings = _calculateEarnings(product, interactionType, cloudResult);
-//       final requiresReview = cloudResult['requiresManualReview'] == true;
-//       final finalEarnings = requiresReview ? 0.0 : earnings;
-
-//       // 📝 Enregistrer l'interaction localement
-//       final interaction = ProductInteraction(
-//         id: _productRepository.generateInteractionId(),
-//         productId: productId,
-//         userId: _authProvider!.user!.id,
-//         type: interactionType,
-//         earnings: finalEarnings,
-//         timestamp: DateTime.now(),
-//         status: requiresReview ? InteractionStatus.pending : InteractionStatus.approved,
-//         metadata: {
-//           'productTitle': product.title,
-//           'interactionType': interactionType.name,
-//           'riskScore': cloudResult['riskScore'],
-//           'fraudAnalysis': cloudResult['fraudAnalysis'],
-//           'requiresReview': requiresReview,
-//           'clickId': cloudResult['clickId'],
-//           'cloudResult': cloudResult,
-//         },
-//       );
-
-//       // 💾 Sauvegarder dans Firestore
-//       await _saveInteractionLocally(interaction);
-
-//       // 💳 Mettre à jour le solde si les gains sont approuvés
-//       if (finalEarnings > 0 && !requiresReview) {
-//         await _productRepository.updateUserBalanceCloud(
-//           userId: _authProvider!.user!.id,
-//           amount: finalEarnings,
-//           transactionType: 'product_interaction',
-//           description: 'أرباح من ${_getInteractionTypeName(interactionType)} "${product.title}"',
-//         );
-//       }
-
-//       // 🔄 Mettre à jour les statistiques du produit
-//       await _updateProductStats(product, interactionType);
-
-//       // 🔄 Recharger les données
-//       await loadMarketplaceProducts();
-
-//       // 📢 Notification selon le statut
-//       await _sendInteractionNotification(product, interactionType, finalEarnings, requiresReview);
-
-//       return {
-//         'success': true,
-//         'earnings': finalEarnings,
-//         'requiresReview': requiresReview,
-//         'message': requiresReview 
-//             ? 'تم تسجيل التفاعل وسيتم مراجعته قريباً'
-//             : 'تهانينا! لقد ربحت ${finalEarnings.toStringAsFixed(2)} دينار',
-//       };
-
-//     } catch (e) {
-//       final errorMsg = 'فشل في تسجيل التفاعل: $e';
-//       _setError(errorMsg);
-//       return {'success': false, 'error': errorMsg};
-//     }
-//   }
-
-//   /// 💾 SAUVEGARDER L'INTERACTION LOCALEMENT
-//   Future<void> _saveInteractionLocally(ProductInteraction interaction) async {
-//     try {
-//       await _productRepository.recordInteraction(interaction);
-//     } catch (e) {
-//       print('⚠️ Failed to save interaction locally: $e');
-//     }
-//   }
-
-//   /// 📊 METTRE À JOUR LES STATISTIQUES DU PRODUIT
-//   Future<void> _updateProductStats(ProductModel product, ProductInteractionType interactionType) async {
-//     try {
-//       ProductModel updatedProduct = product;
-
-//       switch (interactionType) {
-//         case ProductInteractionType.view:
-//           updatedProduct = product.incrementViews();
-//           break;
-//         case ProductInteractionType.share:
-//           updatedProduct = product.incrementShares();
-//           break;
-//         case ProductInteractionType.inquiry:
-//           updatedProduct = product.incrementInquiries();
-//           break;
-//         case ProductInteractionType.purchase:
-//           updatedProduct = product.copyWith(status: ProductStatus.sold);
-//           break;
-//       }
-
-//       // Incrémenter les clics pour les produits CPC
-//       if (product.type == ProductType.cpc || product.type == ProductType.hybrid) {
-//         updatedProduct = updatedProduct.incrementClicks();
-//       }
-
-//       await _productRepository.updateProduct(updatedProduct);
-//     } catch (e) {
-//       print('⚠️ Failed to update product stats: $e');
-//     }
-//   }
-
-//   /// 🔗 PARTAGER UN PRODUIT - AVEC SYSTÈME CLOUD COMPLET
-//   Future<Map<String, dynamic>> shareProduct(ProductModel product) async {
-//     if (_authProvider?.user == null) {
-//       return {'success': false, 'error': 'يجب تسجيل الدخول أولاً'};
-//     }
-
-//     try {
-//       // 📍 Obtenir la localisation de l'utilisateur
-//       final userLocation = await _getUserLocation();
-
-//       // 🔗 Générer un lien de partage tracké via Cloud Functions
-//       final shareResult = await _productRepository.shareProduct(
-//         productId: product.id,
-//         userId: _authProvider!.user!.id,
-//         userLocation: userLocation['city'] ?? 'Unknown',
-//       );
-
-//       if (!shareResult['success']) {
-//         return {'success': false, 'error': 'فشل في إنشاء رابط المشاركة'};
-//       }
-
-//       // 🔗 Partager le produit via le service de partage
-//       final shareLink = shareResult['shareLink'] ?? 'https://reshare.tn/product/${product.id}';
-      
-//       final shared = await _shareService.shareProduct(
-//         title: product.title,
-//         description: product.description,
-//         price: product.price,
-//         shareLink: shareLink,
-//       );
-
-//       if (shared) {
-//         // 📝 Enregistrer le partage comme interaction
-//         final interactionResult = await interactWithProduct(
-//           productId: product.id,
-//           interactionType: ProductInteractionType.share,
-//         );
-
-//         return {
-//           'success': true,
-//           'shared': true,
-//           'interactionResult': interactionResult,
-//           'shareLink': shareLink,
-//         };
-//       } else {
-//         return {'success': false, 'error': 'لم يتم إكمال المشاركة'};
-//       }
-
-//     } catch (e) {
-//       final errorMsg = 'فشل في مشاركة المنتج: $e';
-//       _setError(errorMsg);
-//       return {'success': false, 'error': errorMsg};
-//     }
-//   }
-
-//   /// 👁️ ENREGISTRER UNE VUE - SIMPLIFIÉ
-//   Future<Map<String, dynamic>> viewProduct(String productId) async {
-//     return await interactWithProduct(
-//       productId: productId,
-//       interactionType: ProductInteractionType.view,
-//     );
-//   }
-
-//   /// 💬 ENREGISTRER UNE DEMANDE D'INFORMATION
-//   Future<Map<String, dynamic>> inquireAboutProduct(String productId) async {
-//     return await interactWithProduct(
-//       productId: productId,
-//       interactionType: ProductInteractionType.inquiry,
-//     );
-//   }
-
-//   /// 🛒 ENREGISTRER UN ACHAT
-//   Future<Map<String, dynamic>> purchaseProduct(String productId) async {
-//     return await interactWithProduct(
-//       productId: productId,
-//       interactionType: ProductInteractionType.purchase,
-//     );
-//   }
-
-//   /// 💎 ACHETER UN SPONSORING
-//   Future<Map<String, dynamic>> purchaseSponsoring({
-//     required String productId,
-//     required SponsoringTier tier,
-//     required int days,
-//   }) async {
-//     if (_authProvider?.user == null) {
-//       return {'success': false, 'error': 'يجب تسجيل الدخول أولاً'};
-//     }
-
-//     try {
-//       _setLoading(true);
-//       _clearError();
-
-//       final amount = _getSponsoringPrice(tier, days);
-      
-//       // Vérifier le solde
-//       if (_authProvider!.user!.availableBalance < amount) {
-//         return {'success': false, 'error': 'الرصيد غير كافي لشراء التمويل'};
-//       }
-
-//       // 💳 Acheter le sponsoring
-//       await _productRepository.purchaseSponsoring(
-//         productId: productId,
-//         tier: tier,
-//         days: days,
-//         amount: amount,
-//       );
-
-//       // 💰 Déduire le montant via Cloud Function
-//       await _productRepository.updateUserBalanceCloud(
-//         userId: _authProvider!.user!.id,
-//         amount: -amount,
-//         transactionType: 'sponsoring_purchase',
-//         description: 'شراء تمويل ${_getTierName(tier)} لمدة $days أيام',
-//       );
-
-//       // 🔄 Recharger les produits
-//       await _loadSellerProducts();
-//       await loadMarketplaceProducts();
-
-//       // 📢 Notification
-//       await _cloudFunctions.sendUserNotification(
-//         userId: _authProvider!.user!.id,
-//         title: 'تم شراء التمويل بنجاح! 🎊',
-//         body: 'منتجك سيظهر في المقدمة لمدة $days أيام',
-//         type: 'sponsoring_purchased',
-//       );
-
-//       return {
-//         'success': true,
-//         'amount': amount,
-//         'days': days,
-//         'tier': _getTierName(tier),
-//         'message': 'تم شراء التمويل بنجاح!',
-//       };
-
-//     } catch (e) {
-//       final errorMsg = 'فشل في شراء التمويل: $e';
-//       _setError(errorMsg);
-//       return {'success': false, 'error': errorMsg};
-//     } finally {
-//       _setLoading(false);
-//       notifyListeners();
-//     }
-//   }
-
-//   /// 📈 OBTENIR LES STATISTIQUES DU MARCHÉ
-//   Future<Map<String, dynamic>> getMarketplaceStats() async {
-//     try {
-//       final platformEarnings = await _cloudFunctions.getPlatformEarnings();
-//       final totalInteractions = await _productRepository.getTotalInteractions();
-
-//       return {
-//         'success': true,
-//         'stats': {
-//           'totalProducts': _products.length,
-//           'sponsoredProducts': _sponsoredProducts.length,
-//           'sellerProducts': _sellerProducts.length,
-//           'platformEarnings': platformEarnings['totalEarnings'] ?? 0,
-//           'totalInteractions': totalInteractions['totalInteractions'] ?? 0,
-//           'pendingInteractions': totalInteractions['pendingInteractions'] ?? 0,
-//           'approvedEarnings': totalInteractions['approvedEarnings'] ?? 0,
-//         },
-//       };
-//     } catch (e) {
-//       return {
-//         'success': false,
-//         'error': e.toString(),
-//         'stats': {
-//           'totalProducts': _products.length,
-//           'sponsoredProducts': _sponsoredProducts.length,
-//           'sellerProducts': _sellerProducts.length,
-//         },
-//       };
-//     }
-//   }
-
-//   /// 🔍 RECHERCHER DES PRODUITS
-//   Future<List<ProductModel>> searchProducts({
-//     required String query,
-//     String? category,
-//     double? minPrice,
-//     double? maxPrice,
-//   }) async {
-//     try {
-//       _setLoading(true);
-      
-//       final results = await _productRepository.searchProducts(
-//         query: query,
-//         category: category,
-//         minPrice: minPrice,
-//         maxPrice: maxPrice,
-//       );
-
-//       return results;
-//     } catch (e) {
-//       _setError('فشل في البحث: $e');
-//       return [];
-//     } finally {
-//       _setLoading(false);
-//       notifyListeners();
-//     }
-//   }
-
-//   /// 🏷️ CHANGER LA CATÉGORIE
-//   Future<void> changeCategory(String category) async {
-//     _selectedCategory = category;
-//     await loadMarketplaceProducts();
-//   }
-
-//   /// 🔄 CHANGER LE TYPE
-//   Future<void> changeType(ProductType type) async {
-//     _selectedType = type;
-//     await loadMarketplaceProducts();
-//   }
-
-//   /// ⚙️ FILTRER LES PRODUITS
-//   Future<void> filterProducts(MarketplaceFilter newFilter) async {
-//     try {
-//       _setLoading(true);
-//       _filter = newFilter;
-//       _applyFilters();
-//     } catch (e) {
-//       _setError('فشل في تصفية المنتجات: $e');
-//     } finally {
-//       _setLoading(false);
-//       notifyListeners();
-//     }
-//   }
-
-//   /// 🔄 ACTUALISER LES DONNÉES
-//   Future<void> refreshMarketplace() async {
-//     await loadMarketplaceProducts();
-//     await _loadSellerProducts();
-//   }
-
-//   // ===============================================================
-//   // MÉTHODES PRIVÉES - HELPERS
-//   // ===============================================================
-
-//   /// 💰 CALCULER LES GAINS
-//   double _calculateEarnings(
-//     ProductModel product, 
-//     ProductInteractionType interactionType,
-//     Map<String, dynamic> cloudResult,
-//   ) {
-//     double baseEarnings = 0.0;
-    
-//     switch (interactionType) {
-//       case ProductInteractionType.view:
-//         baseEarnings = product.participantEarnings * 0.5;
-//         break;
-//       case ProductInteractionType.share:
-//         baseEarnings = product.participantEarnings;
-//         break;
-//       case ProductInteractionType.inquiry:
-//         baseEarnings = product.participantEarnings * 0.8;
-//         break;
-//       case ProductInteractionType.purchase:
-//         baseEarnings = product.participantEarnings * 2.0;
-//         break;
-//     }
-
-//     final riskScore = cloudResult['riskScore'] ?? 0;
-//     final riskMultiplier = 1.0 - (riskScore / 200.0);
-    
-//     return baseEarnings * riskMultiplier.clamp(0.5, 1.0);
-//   }
-
-//   /// 📱 OBTENIR LES INFORMATIONS DU DISPOSITIF
-//   Future<Map<String, dynamic>> _getDeviceInfo() async {
-//     final window = WidgetsBinding.instance.window;
-    
-//     return {
-//       'userAgent': 'ReShare-Mobile-App',
-//       'deviceHash': _authProvider?.user?.id ?? 'unknown',
-//       'screenResolution': '${window.physicalSize.width}x${window.physicalSize.height}',
-//       'platform': Platform.operatingSystem,
-//       'platformVersion': Platform.operatingSystemVersion,
-//       'appVersion': '1.0.0',
-//       'timestamp': DateTime.now().millisecondsSinceEpoch,
-//     };
-//   }
-
-//   /// 📍 OBTENIR LA LOCALISATION (SIMULÉE)
-//   Future<Map<String, dynamic>> _getUserLocation() async {
-//     return {
-//       'city': 'Tunis',
-//       'country': 'Tunisia',
-//       'latitude': 36.8065,
-//       'longitude': 10.1815,
-//       'accuracy': 100.0,
-//     };
-//   }
-
-//   /// 📢 ENVOYER UNE NOTIFICATION D'INTERACTION
-//   Future<void> _sendInteractionNotification(
-//     ProductModel product,
-//     ProductInteractionType interactionType,
-//     double earnings,
-//     bool requiresReview,
-//   ) async {
-//     final title = requiresReview ? 'تفاعل قيد المراجعة ⏳' : 'تهانينا! 🎊';
-//     final body = requiresReview 
-//         ? 'سيتم مراجعة ${_getInteractionTypeName(interactionType)} مع "${product.title}" قريباً'
-//         : 'لقد ربحت ${earnings.toStringAsFixed(2)} د من ${_getInteractionTypeName(interactionType)} "${product.title}"';
-
-//     await _cloudFunctions.sendUserNotification(
-//       userId: _authProvider!.user!.id,
-//       title: title,
-//       body: body,
-//       type: requiresReview ? 'interaction_pending' : 'interaction_rewarded',
-//     );
-//   }
-
-//   /// 🏷️ NOM DU TYPE D'INTERACTION
-//   String _getInteractionTypeName(ProductInteractionType type) {
-//     switch (type) {
-//       case ProductInteractionType.view:
-//         return 'مشاهدة';
-//       case ProductInteractionType.share:
-//         return 'مشاركة';
-//       case ProductInteractionType.inquiry:
-//         return 'استفسار';
-//       case ProductInteractionType.purchase:
-//         return 'شراء';
-//     }
-//   }
-
-//   /// 💰 PRIX DU SPONSORING
-//   double _getSponsoringPrice(SponsoringTier tier, int days) {
-//     double basePrice;
-//     switch (tier) {
-//       case SponsoringTier.topProduct:
-//         basePrice = 20.0;
-//         break;
-//       case SponsoringTier.boostVisibility:
-//         basePrice = 15.0;
-//         break;
-//       case SponsoringTier.bannerDisplay:
-//         basePrice = 30.0;
-//         break;
-//     }
-    
-//     return basePrice * (days / 7);
-//   }
-
-//   /// 🏆 NOM DU TIER
-//   String _getTierName(SponsoringTier tier) {
-//     switch (tier) {
-//       case SponsoringTier.topProduct:
-//         return 'منتج مميز';
-//       case SponsoringTier.boostVisibility:
-//         return 'تعزيز الظهور';
-//       case SponsoringTier.bannerDisplay:
-//         return 'عرض بانر';
-//     }
-//   }
-
-//   /// ⚙️ APPLIQUER LES FILTRES
-//   void _applyFilters() {
-//     List<ProductModel> filtered = List.from(_products);
-
-//     if (_filter.minPrice != null) {
-//       filtered = filtered.where((p) => p.price >= _filter.minPrice!).toList();
-//     }
-
-//     if (_filter.maxPrice != null) {
-//       filtered = filtered.where((p) => p.price <= _filter.maxPrice!).toList();
-//     }
-
-//     if (_filter.sponsoredOnly) {
-//       filtered = filtered.where((p) => p.isSponsored).toList();
-//     }
-
-//     if (_filter.cpcOnly) {
-//       filtered = filtered.where((p) => p.type == ProductType.cpc).toList();
-//     }
-
-//     if (_filter.marketplaceOnly) {
-//       filtered = filtered.where((p) => p.isMarketplace).toList();
-//     }
-
-//     switch (_filter.sortBy) {
-//       case ProductSort.newest:
-//         filtered.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-//         break;
-//       case ProductSort.priceLow:
-//         filtered.sort((a, b) => a.price.compareTo(b.price));
-//         break;
-//       case ProductSort.priceHigh:
-//         filtered.sort((a, b) => b.price.compareTo(a.price));
-//         break;
-//       case ProductSort.mostViewed:
-//         filtered.sort((a, b) => b.views.compareTo(a.views));
-//         break;
-//     }
-
-//     _products = filtered;
-//   }
-
-//   void _setLoading(bool loading) {
-//     _isLoading = loading;
-//     if (loading) _clearError();
-//   }
-
-//   void _setError(String error) {
-//     _error = error;
-//   }
-
-//   void _clearError() {
-//     _error = null;
-//   }
-// }
-
-// class MarketplaceFilter {
-//   final double? minPrice;
-//   final double? maxPrice;
-//   final bool sponsoredOnly;
-//   final bool cpcOnly;
-//   final bool marketplaceOnly;
-//   final ProductSort sortBy;
-
-//   MarketplaceFilter({
-//     this.minPrice,
-//     this.maxPrice,
-//     this.sponsoredOnly = false,
-//     this.cpcOnly = false,
-//     this.marketplaceOnly = false,
-//     this.sortBy = ProductSort.newest,
-//   });
-
-//   bool get hasFilters {
-//     return minPrice != null ||
-//         maxPrice != null ||
-//         sponsoredOnly ||
-//         cpcOnly ||
-//         marketplaceOnly ||
-//         sortBy != ProductSort.newest;
-//   }
-
-//   MarketplaceFilter copyWith({
-//     double? minPrice,
-//     double? maxPrice,
-//     bool? sponsoredOnly,
-//     bool? cpcOnly,
-//     bool? marketplaceOnly,
-//     ProductSort? sortBy,
-//   }) {
-//     return MarketplaceFilter(
-//       minPrice: minPrice ?? this.minPrice,
-//       maxPrice: maxPrice ?? this.maxPrice,
-//       sponsoredOnly: sponsoredOnly ?? this.sponsoredOnly,
-//       cpcOnly: cpcOnly ?? this.cpcOnly,
-//       marketplaceOnly: marketplaceOnly ?? this.marketplaceOnly,
-//       sortBy: sortBy ?? this.sortBy,
-//     );
-//   }
-// }
-
-// enum ProductSort {
-//   newest,
-//   priceLow,
-//   priceHigh,
-//   mostViewed,
-// }
+      // Charger les campagnes disponibles
+      final campaigns = await _campaignRepository.getAvailableCampaigns(
+        userId: user.id,
+        locationPreference: user.locationPreference,
+      );
+
+      // Convertir en MarketplaceCampaignModel avec des données supplémentaires
+      _availableCampaigns = await _enhanceCampaignsForMarketplace(campaigns);
+      _filteredCampaigns = _availableCampaigns;
+
+      notifyListeners();
+    } catch (e) {
+      _setError('فشل في تحميل حملات السوق: $e');
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Améliorer les campagnes pour la marketplace
+  Future<List<MarketplaceCampaignModel>> _enhanceCampaignsForMarketplace(
+    List<CampaignModel> campaigns,
+  ) async {
+    final enhancedCampaigns = <MarketplaceCampaignModel>[];
+
+    for (final campaign in campaigns) {
+      try {
+        // Récupérer les données supplémentaires depuis Firestore
+        final campaignDoc = await FirebaseFirestore.instance
+            .collection('campaigns')
+            .doc(campaign.id)
+            .get();
+
+        final data = campaignDoc.data() as Map<String, dynamic>? ?? {};
+
+        // Créer le modèle marketplace avec tous les champs requis
+        final marketplaceCampaign = MarketplaceCampaignModel(
+          id: campaign.id,
+          businessId: campaign.businessId,
+          title: campaign.title,
+          description: campaign.description,
+          targetUrl: campaign.targetUrl,
+          type: campaign.type,
+          status: campaign.status,
+          budget: campaign.budget,
+          spent: campaign.spent,
+          cpc: campaign.cpc,
+          targetClicks: campaign.targetClicks,
+          achievedClicks: campaign.achievedClicks,
+          uniqueClicks: campaign.uniqueClicks,
+          targetRegions: campaign.targetRegions,
+          targetLocation: campaign.targetLocation,
+          targetRadius: campaign.targetRadius,
+          createdAt: campaign.createdAt,
+          startDate: campaign.startDate,
+          endDate: campaign.endDate,
+          imageUrl: campaign.imageUrl,
+          imageExtension: campaign.imageExtension,
+          imagePath: campaign.imagePath,
+          isActive: campaign.isActive,
+          maxClicksPerUser: campaign.maxClicksPerUser,
+          conversionRate: campaign.conversionRate,
+          conversions: campaign.conversions,
+          advertiserId: campaign.advertiserId,
+          // Champs spécifiques marketplace
+          isFeatured: data['isFeatured'] == true,
+          rating: (data['rating'] ?? 0.0).toDouble(),
+          totalShares: (data['totalShares'] ?? 0).toInt(),
+          advertiserName: data['advertiserName']?.toString() ?? 'معلن',
+          advertiserLogo: data['advertiserLogo']?.toString(),
+          tags: data['tags'] != null ? List<String>.from(data['tags']) : [],
+          featuredUntil: data['featuredUntil'] != null
+              ? DateTime.parse(data['featuredUntil'])
+              : null,
+        );
+
+        enhancedCampaigns.add(marketplaceCampaign);
+      } catch (e) {
+        // Fallback: créer avec des valeurs par défaut
+        final marketplaceCampaign = MarketplaceCampaignModel(
+          id: campaign.id,
+          businessId: campaign.businessId,
+          title: campaign.title,
+          description: campaign.description,
+          targetUrl: campaign.targetUrl,
+          type: campaign.type,
+          status: campaign.status,
+          budget: campaign.budget,
+          spent: campaign.spent,
+          cpc: campaign.cpc,
+          targetClicks: campaign.targetClicks,
+          achievedClicks: campaign.achievedClicks,
+          uniqueClicks: campaign.uniqueClicks,
+          targetRegions: campaign.targetRegions,
+          targetLocation: campaign.targetLocation,
+          targetRadius: campaign.targetRadius,
+          createdAt: campaign.createdAt,
+          startDate: campaign.startDate,
+          endDate: campaign.endDate,
+          imageUrl: campaign.imageUrl,
+          imageExtension: campaign.imageExtension,
+          imagePath: campaign.imagePath,
+          isActive: campaign.isActive,
+          maxClicksPerUser: campaign.maxClicksPerUser,
+          conversionRate: campaign.conversionRate,
+          conversions: campaign.conversions,
+          advertiserId: campaign.advertiserId,
+          advertiserName: 'معلن',
+          tags: [campaign.typeText],
+        );
+        enhancedCampaigns.add(marketplaceCampaign);
+      }
+    }
+
+    return enhancedCampaigns;
+  }
+
+  /// Filtrer les campagnes
+  void filterCampaigns(String filter) {
+    switch (filter) {
+      case 'featured':
+        _filteredCampaigns = _availableCampaigns.where((c) => c.isFeatured).toList();
+        break;
+      case 'trending':
+        _filteredCampaigns = _availableCampaigns.where((c) => c.isTrending).toList();
+        break;
+      case 'new':
+        _filteredCampaigns = _availableCampaigns.where((c) => c.isNew).toList();
+        break;
+      case 'all':
+      default:
+        _filteredCampaigns = _availableCampaigns;
+        break;
+    }
+    notifyListeners();
+  }
+
+  /// Trier les campagnes
+  void sortCampaigns(String sortBy) {
+    switch (sortBy) {
+      case 'rating':
+        _filteredCampaigns.sort((a, b) => b.rating.compareTo(a.rating));
+        break;
+      case 'shares':
+        _filteredCampaigns.sort((a, b) => b.totalShares.compareTo(a.totalShares));
+        break;
+      case 'earnings':
+        _filteredCampaigns.sort((a, b) => b.participantEarnings.compareTo(a.participantEarnings));
+        break;
+      case 'newest':
+        _filteredCampaigns.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        break;
+      case 'featured':
+      default:
+        _filteredCampaigns.sort((a, b) {
+          if (a.isFeatured && !b.isFeatured) return -1;
+          if (!a.isFeatured && b.isFeatured) return 1;
+          return b.createdAt.compareTo(a.createdAt);
+        });
+        break;
+    }
+    notifyListeners();
+  }
+
+  /// Rechercher dans les campagnes
+  void searchMarketplaceCampaigns(String query) {
+    if (query.isEmpty) {
+      _filteredCampaigns = _availableCampaigns;
+    } else {
+      _filteredCampaigns = _availableCampaigns.where((campaign) {
+        return campaign.title.toLowerCase().contains(query.toLowerCase()) ||
+            campaign.description.toLowerCase().contains(query.toLowerCase()) ||
+            campaign.advertiserName.toLowerCase().contains(query.toLowerCase()) ||
+            campaign.tags.any((tag) => tag.toLowerCase().contains(query.toLowerCase()));
+      }).toList();
+    }
+    notifyListeners();
+  }
+
+  /// Partager une campagne de la marketplace
+  Future<void> shareMarketplaceCampaign(MarketplaceCampaignModel marketplaceCampaign) async {
+    if (_authProvider?.user == null) return;
+
+    try {
+      _setLoading(true);
+      _clearError();
+
+      final user = _authProvider!.user!;
+
+      // Convertir MarketplaceCampaignModel en CampaignModel pour la compatibilité
+      final campaign = CampaignModel(
+        id: marketplaceCampaign.id,
+        businessId: marketplaceCampaign.businessId,
+        title: marketplaceCampaign.title,
+        description: marketplaceCampaign.description,
+        targetUrl: marketplaceCampaign.targetUrl,
+        type: marketplaceCampaign.type,
+        status: marketplaceCampaign.status,
+        budget: marketplaceCampaign.budget,
+        spent: marketplaceCampaign.spent,
+        cpc: marketplaceCampaign.cpc,
+        targetClicks: marketplaceCampaign.targetClicks,
+        achievedClicks: marketplaceCampaign.achievedClicks,
+        uniqueClicks: marketplaceCampaign.uniqueClicks,
+        targetRegions: marketplaceCampaign.targetRegions,
+        targetLocation: marketplaceCampaign.targetLocation,
+        targetRadius: marketplaceCampaign.targetRadius,
+        createdAt: marketplaceCampaign.createdAt,
+        startDate: marketplaceCampaign.startDate,
+        endDate: marketplaceCampaign.endDate,
+        imageUrl: marketplaceCampaign.imageUrl,
+        imageExtension: marketplaceCampaign.imageExtension,
+        imagePath: marketplaceCampaign.imagePath,
+        isActive: marketplaceCampaign.isActive,
+        maxClicksPerUser: marketplaceCampaign.maxClicksPerUser,
+        conversionRate: marketplaceCampaign.conversionRate,
+        conversions: marketplaceCampaign.conversions,
+        advertiserId: marketplaceCampaign.advertiserId,
+      );
+
+      // Vérifier l'éligibilité de partage
+      final canShare = await _canUserShareCampaign(user.id, campaign.id);
+      if (!canShare) {
+        _setError('لقد وصلت إلى الحد الأقصى للمشاركات في هذه الحملة');
+        return;
+      }
+
+      // Obtenir la localisation de l'utilisateur
+      final location = await _locationService.getCurrentLocation();
+      final locationString = location != null
+          ? '${location.latitude},${location.longitude}'
+          : 'unknown';
+
+      // Appeler Cloud Function pour partager la campagne
+      final result = await _cloudFunctions.callFunction(
+        'generateTrackingLink',
+        parameters: {
+          'campaignId': campaign.id,
+          'participantId': user.id,
+          'location': locationString,
+        },
+      );
+
+      if (result['success'] == true) {
+        final shareLink = result['trackingLink'];
+        final shareId = result['shareId'];
+
+        // Enregistrer le partage dans la base de données
+        await _campaignRepository.recordCampaignShare(
+          userId: user.id,
+          campaignId: campaign.id,
+          shareLink: shareLink,
+          location: locationString,
+        );
+
+        // Partager le lien avec le message personnalisé pour la marketplace
+        final shared = await _shareService.shareCampaign(
+          campaign: campaign,
+          shareLink: shareLink,
+          customMessage: '''
+🚀 حملة رائعة في سوق ReShare!
+
+${marketplaceCampaign.title}
+
+${marketplaceCampaign.description}
+
+🎯 شارك الآن واربح ${marketplaceCampaign.participantEarnings.toStringAsFixed(3)} دينار لكل نقرة!
+
+⭐ التقييم: ${marketplaceCampaign.ratingText}
+📤 المشاركات: ${marketplaceCampaign.shareCountText}
+
+🔗 ${_shortenUrl(shareLink)}
+
+#ReShare #سوق_الحملات #${marketplaceCampaign.advertiserName}
+''',
+        );
+
+        if (shared) {
+          // Envoyer une notification de succès
+          await _cloudFunctions.callFunction('sendUserNotification', parameters: {
+            'userId': user.id,
+            'title': 'تمت المشاركة بنجاح! 🎯',
+            'body': 'حملة "${campaign.title}" جاهزة للمشاركة',
+            'type': 'campaign_shared',
+            'data': {'campaignId': campaign.id, 'shareId': shareId},
+          });
+
+          // Incrémenter le compteur de partages dans Firestore
+          await _incrementShareCount(campaign.id);
+
+          // Actualiser les données pour mettre à jour les statistiques
+          await loadMarketplaceCampaigns();
+
+          // Afficher un message de succès
+          _showSuccessMessage('تم مشاركة الحملة بنجاح!');
+        }
+      } else {
+        throw Exception(result['error'] ?? 'فشل في مشاركة الحملة');
+      }
+    } catch (e) {
+      _setError('فشل في مشاركة الحملة: $e');
+      _showErrorMessage('فشل في مشاركة الحملة: $e');
+    } finally {
+      _setLoading(false);
+      notifyListeners();
+    }
+  }
+
+  /// Vérifier si l'utilisateur peut partager la campagne
+  Future<bool> _canUserShareCampaign(String userId, String campaignId) async {
+    try {
+      final sharesSnapshot = await FirebaseFirestore.instance
+          .collection('campaignShares')
+          .where('userId', isEqualTo: userId)
+          .where('campaignId', isEqualTo: campaignId)
+          .get();
+
+      // Vérifier aussi les limites de la campagne
+      final campaignDoc = await FirebaseFirestore.instance
+          .collection('campaigns')
+          .doc(campaignId)
+          .get();
+
+      final campaignData = campaignDoc.data() as Map<String, dynamic>? ?? {};
+      final maxSharesPerUser = campaignData['maxSharesPerUser'] ?? 10;
+
+      return sharesSnapshot.docs.length < maxSharesPerUser;
+    } catch (e) {
+      print('Error checking share eligibility: $e');
+      return true; // En cas d'erreur, permettre le partage
+    }
+  }
+
+  /// Incrémenter le compteur de partages
+  Future<void> _incrementShareCount(String campaignId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('campaigns')
+          .doc(campaignId)
+          .update({
+        'totalShares': FieldValue.increment(1),
+        'lastSharedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      print('Error incrementing share count: $e');
+    }
+  }
+
+  /// Obtenir les détails d'une campagne spécifique
+  Future<MarketplaceCampaignModel?> getCampaignDetails(String campaignId) async {
+    try {
+      final campaignDoc = await FirebaseFirestore.instance
+          .collection('campaigns')
+          .doc(campaignId)
+          .get();
+
+      if (!campaignDoc.exists) return null;
+
+      final campaignData = campaignDoc.data() as Map<String, dynamic>;
+      final campaign = CampaignModel.fromMap(campaignData);
+
+      // Convertir en MarketplaceCampaignModel
+      return MarketplaceCampaignModel(
+        id: campaign.id,
+        businessId: campaign.businessId,
+        title: campaign.title,
+        description: campaign.description,
+        targetUrl: campaign.targetUrl,
+        type: campaign.type,
+        status: campaign.status,
+        budget: campaign.budget,
+        spent: campaign.spent,
+        cpc: campaign.cpc,
+        targetClicks: campaign.targetClicks,
+        achievedClicks: campaign.achievedClicks,
+        uniqueClicks: campaign.uniqueClicks,
+        targetRegions: campaign.targetRegions,
+        targetLocation: campaign.targetLocation,
+        targetRadius: campaign.targetRadius,
+        createdAt: campaign.createdAt,
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
+        imageUrl: campaign.imageUrl,
+        imageExtension: campaign.imageExtension,
+        imagePath: campaign.imagePath,
+        isActive: campaign.isActive,
+        maxClicksPerUser: campaign.maxClicksPerUser,
+        conversionRate: campaign.conversionRate,
+        conversions: campaign.conversions,
+        advertiserId: campaign.advertiserId,
+        isFeatured: campaignData['isFeatured'] == true,
+        rating: (campaignData['rating'] ?? 0.0).toDouble(),
+        totalShares: (campaignData['totalShares'] ?? 0).toInt(),
+        advertiserName: campaignData['advertiserName']?.toString() ?? 'معلن',
+        advertiserLogo: campaignData['advertiserLogo']?.toString(),
+        tags: campaignData['tags'] != null ? List<String>.from(campaignData['tags']) : [],
+        featuredUntil: campaignData['featuredUntil'] != null
+            ? DateTime.parse(campaignData['featuredUntil'])
+            : null,
+      );
+    } catch (e) {
+      print('Error getting campaign details: $e');
+      return null;
+    }
+  }
+
+  /// Actualiser les campagnes
+  Future<void> refreshMarketplaceCampaigns() async {
+    await loadMarketplaceCampaigns();
+  }
+
+  /// Démarrer les mises à jour en temps réel
+  void _startRealTimeUpdates() {
+    final user = _authProvider!.user;
+    if (user == null) return;
+
+    FirebaseFirestore.instance
+        .collection('campaigns')
+        .where('isActive', isEqualTo: true)
+        .where('status', isEqualTo: CampaignStatus.active.index)
+        .snapshots()
+        .listen((snapshot) async {
+          try {
+            final campaigns = snapshot.docs
+                .map((doc) => CampaignModel.fromMap(doc.data() as Map<String, dynamic>))
+                .toList();
+
+            _availableCampaigns = await _enhanceCampaignsForMarketplace(campaigns);
+            _filteredCampaigns = _availableCampaigns;
+            
+            notifyListeners();
+          } catch (e) {
+            print('Error in real-time updates: $e');
+          }
+        });
+  }
+
+  /// Afficher un message de succès
+  void _showSuccessMessage(String message) {
+    // Cette méthode peut être utilisée pour afficher des SnackBars
+    // Vous pouvez l'adapter selon votre système de notification
+    print('Success: $message');
+  }
+
+  /// Afficher un message d'erreur
+  void _showErrorMessage(String message) {
+    // Cette méthode peut être utilisée pour afficher des SnackBars
+    // Vous pouvez l'adapter selon votre système de notification
+    print('Error: $message');
+  }
+
+  String _shortenUrl(String url) {
+    // Implémenter le raccourcissement d'URL si nécessaire
+    return url;
+  }
+
+  // Méthodes helpers pour la gestion de l'état
+  void _setLoading(bool loading) {
+    _isLoading = loading;
+    if (loading) _clearError();
+    notifyListeners();
+  }
+
+  void _setError(String error) {
+    _error = error;
+    notifyListeners();
+  }
+
+  void _clearError() {
+    _error = null;
+  }
+
+  @override
+  void dispose() {
+    // Nettoyer les ressources si nécessaire
+    super.dispose();
+  }
+}

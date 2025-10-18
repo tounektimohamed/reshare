@@ -28,6 +28,11 @@ class CampaignModel {
   final double conversionRate;
   final int conversions;
   final String? advertiserId; // 🔥 NOUVEAU CHAMP
+  
+  // NOUVEAUX CHAMPS AJOUTÉS
+  final String campaignType; // 'ads' ou 'marketplace'
+  final double marketplaceFee; // Frais pour marketplace
+  final double totalDeduction; // Total déduit du compte
 
   CampaignModel({
     required this.id,
@@ -57,6 +62,11 @@ class CampaignModel {
     this.conversionRate = 0.0,
     this.conversions = 0,
     this.advertiserId, // 🔥 NOUVEAU
+    
+    // NOUVEAUX CHAMPS INITIALISÉS
+    this.campaignType = 'ads', // Valeur par défaut
+    this.marketplaceFee = 0.0, // Valeur par défaut
+    this.totalDeduction = 0.0, // Valeur par défaut
   });
 
   // Getters calculés
@@ -67,6 +77,10 @@ class CampaignModel {
   bool get isBudgetSufficient => totalCost <= budget;
   double get completionRate => targetClicks > 0 ? (achievedClicks / targetClicks) * 100 : 0.0;
   double get budgetUtilization => budget > 0 ? (spent / budget) * 100 : 0.0;
+  
+  // NOUVEAUX GETTERS POUR LE TYPE DE CAMPAGNE
+  bool get isMarketplaceCampaign => campaignType == 'marketplace';
+  bool get isAdsCampaign => campaignType == 'ads';
   
   // 🔥 NOUVEAU : Vérifier si la campagne a une image
   bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
@@ -122,6 +136,11 @@ class CampaignModel {
       conversionRate: _safeDouble(map['conversionRate']),
       conversions: _safeInt(map['conversions']),
       advertiserId: map['advertiserId']?.toString(), // 🔥 NOUVEAU
+      
+      // NOUVEAUX CHAMPS AVEC VALEURS PAR DÉFAUT SI NULL
+      campaignType: map['campaignType']?.toString() ?? 'ads',
+      marketplaceFee: _safeDouble(map['marketplaceFee']),
+      totalDeduction: _safeDouble(map['totalDeduction']),
     );
   }
 
@@ -249,6 +268,11 @@ class CampaignModel {
       'conversionRate': conversionRate,
       'conversions': conversions,
       'advertiserId': advertiserId, // 🔥 NOUVEAU
+      
+      // NOUVEAUX CHAMPS AJOUTÉS
+      'campaignType': campaignType,
+      'marketplaceFee': marketplaceFee,
+      'totalDeduction': totalDeduction,
     };
   }
 
@@ -275,6 +299,11 @@ class CampaignModel {
       'maxClicksPerUser': maxClicksPerUser,
       'conversionRate': 0.0,
       'conversions': 0,
+      
+      // NOUVEAUX CHAMPS AJOUTÉS
+      'campaignType': campaignType,
+      'marketplaceFee': marketplaceFee,
+      'totalDeduction': totalDeduction,
     };
   }
 
@@ -322,6 +351,17 @@ class CampaignModel {
     }
   }
 
+  /// NOUVELLE MÉTHODE : Obtenir le type de campagne sous forme de texte
+  String get campaignTypeText {
+    switch (campaignType) {
+      case 'marketplace':
+        return 'سوق الحملات';
+      case 'ads':
+      default:
+        return 'إعلانات عادية';
+    }
+  }
+
   /// 🔥 NOUVELLE MÉTHODE : Obtenir la couleur du statut
   int get statusColor {
     switch (status) {
@@ -340,7 +380,18 @@ class CampaignModel {
     }
   }
 
-  /// إنشاء نسخة معدلة من الحملة
+  /// NOUVELLE MÉTHODE : Obtenir la couleur du type de campagne
+  int get campaignTypeColor {
+    switch (campaignType) {
+      case 'marketplace':
+        return 0xFF4CAF50; // Green
+      case 'ads':
+      default:
+        return 0xFF2196F3; // Blue
+    }
+  }
+
+  /// Create a copy of the campaign with updated values
   CampaignModel copyWith({
     String? id,
     String? businessId,
@@ -369,6 +420,11 @@ class CampaignModel {
     double? conversionRate,
     int? conversions,
     String? advertiserId, // 🔥 NOUVEAU
+    
+    // NOUVEAUX CHAMPS AJOUTÉS
+    String? campaignType,
+    double? marketplaceFee,
+    double? totalDeduction,
   }) {
     return CampaignModel(
       id: id ?? this.id,
@@ -398,6 +454,11 @@ class CampaignModel {
       conversionRate: conversionRate ?? this.conversionRate,
       conversions: conversions ?? this.conversions,
       advertiserId: advertiserId ?? this.advertiserId, // 🔥 NOUVEAU
+      
+      // NOUVEAUX CHAMPS AJOUTÉS
+      campaignType: campaignType ?? this.campaignType,
+      marketplaceFee: marketplaceFee ?? this.marketplaceFee,
+      totalDeduction: totalDeduction ?? this.totalDeduction,
     );
   }
 
@@ -411,6 +472,19 @@ class CampaignModel {
       imageUrl: imageUrl,
       imageExtension: imageExtension,
       imagePath: imagePath,
+    );
+  }
+
+  /// NOUVELLE MÉTHODE : Pour mettre à jour le type de campagne
+  CampaignModel withCampaignType({
+    required String campaignType,
+    double? marketplaceFee,
+    double? totalDeduction,
+  }) {
+    return copyWith(
+      campaignType: campaignType,
+      marketplaceFee: marketplaceFee,
+      totalDeduction: totalDeduction,
     );
   }
 
@@ -466,7 +540,7 @@ class CampaignModel {
 
   @override
   String toString() {
-    return 'CampaignModel(id: $id, title: $title, type: $type, status: $status, budget: $budget, cpc: $cpc, imageUrl: $imageUrl, hasImage: $hasImage)';
+    return 'CampaignModel(id: $id, title: $title, type: $type, campaignType: $campaignType, status: $status, budget: $budget, cpc: $cpc, imageUrl: $imageUrl, hasImage: $hasImage)';
   }
 }
 

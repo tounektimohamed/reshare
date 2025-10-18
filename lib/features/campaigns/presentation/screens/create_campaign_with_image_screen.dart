@@ -17,10 +17,12 @@ class CreateCampaignWithImageScreen extends StatefulWidget {
   const CreateCampaignWithImageScreen({super.key});
 
   @override
-  State<CreateCampaignWithImageScreen> createState() => _CreateCampaignWithImageScreenState();
+  State<CreateCampaignWithImageScreen> createState() =>
+      _CreateCampaignWithImageScreenState();
 }
 
-class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageScreen> {
+class _CreateCampaignWithImageScreenState
+    extends State<CreateCampaignWithImageScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
@@ -31,6 +33,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
   String _selectedType = 'open';
   int _maxClicksPerUser = 5;
   int _targetClicks = 1000;
+  String _selectedCampaignType = 'ads'; // 'ads' ou 'marketplace'
 
   CampaignType _campaignType = CampaignType.open;
   File? _selectedImage;
@@ -40,6 +43,9 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
 
   final ImagePicker _imagePicker = ImagePicker();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
+  // Constantes pour les frais
+  static const double marketplaceFee = 2.0;
 
   @override
   Widget build(BuildContext context) {
@@ -103,6 +109,9 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Nouvelle section pour choisir le type de campagne
+              _buildCampaignTypeSelection(),
+              const SizedBox(height: 16),
               _buildImageSection(),
               const SizedBox(height: 24),
               _buildCampaignDetailsSection(),
@@ -131,6 +140,143 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
     );
   }
 
+  // Nouvelle section pour choisir entre Ads et Marketplace
+  Widget _buildCampaignTypeSelection() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'نوع الحملة الإعلانية *',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[700],
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildCampaignTypeCard(
+                    title: 'إعلانات عادية',
+                    subtitle: 'نفس النظام الحالي',
+                    icon: Icons.ads_click,
+                    isSelected: _selectedCampaignType == 'ads',
+                    onTap: () {
+                      setState(() {
+                        _selectedCampaignType = 'ads';
+                        // Réinitialiser les valeurs par défaut pour Ads
+                        _cpc = 0.06;
+                        _budget = 60.0;
+                        _targetClicks = (_budget / _cpc).round();
+                      });
+                    },
+                    color: Colors.blue,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildCampaignTypeCard(
+                    title: 'سوق الحملات',
+                    subtitle:
+                        '+ ${marketplaceFee.toStringAsFixed(1)} دينار رسوم سوق', // CORRIGÉ
+                    icon: Icons.store,
+                    isSelected: _selectedCampaignType == 'marketplace',
+                    onTap: () {
+                      setState(() {
+                        _selectedCampaignType = 'marketplace';
+                        // Garder le même budget mais ajouter les frais
+                        _cpc = 0.06;
+                        _targetClicks = (_budget / _cpc).round();
+                      });
+                    },
+                    color: Colors.green,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (_selectedCampaignType == 'marketplace')
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info, color: Colors.green[700], size: 16),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'سيتم خصم ${marketplaceFee.toStringAsFixed(1)} دينار إضافية كرسوم لنشر الحملة في السوق', // CORRIGÉ
+                        style: TextStyle(
+                          color: Colors.green[800],
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCampaignTypeCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected ? color.withOpacity(0.1) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? color : Colors.grey[300]!,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 32, color: isSelected ? color : Colors.grey),
+            const SizedBox(height: 8),
+            Text(
+              title,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: isSelected ? color : Colors.grey[700],
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              subtitle,
+              style: TextStyle(
+                color: isSelected ? color : Colors.grey[600],
+                fontSize: 12,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildImageSection() {
     return Card(
       elevation: 2,
@@ -154,10 +300,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
                 width: double.infinity,
                 height: 150,
                 decoration: BoxDecoration(
-                  border: Border.all(
-                    color: Colors.grey[300]!,
-                    width: 2,
-                  ),
+                  border: Border.all(color: Colors.grey[300]!, width: 2),
                   borderRadius: BorderRadius.circular(8),
                   color: Colors.grey[100],
                 ),
@@ -173,9 +316,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
                           const SizedBox(height: 8),
                           Text(
                             'إضافة صورة للحملة',
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                            ),
+                            style: TextStyle(color: Colors.grey[600]),
                           ),
                           Text(
                             'انقر لاختيار صورة',
@@ -199,16 +340,16 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
                                   ),
                                 )
                               : _selectedImage != null
-                                  ? ClipRRect(
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Image.file(
-                                        _selectedImage!,
-                                        width: double.infinity,
-                                        height: double.infinity,
-                                        fit: BoxFit.cover,
-                                      ),
-                                    )
-                                  : Container(),
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.file(
+                                    _selectedImage!,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                  ),
+                                )
+                              : Container(),
                           Positioned(
                             top: 8,
                             right: 8,
@@ -219,7 +360,11 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
                                 shape: BoxShape.circle,
                               ),
                               child: IconButton(
-                                icon: const Icon(Icons.close, color: Colors.white, size: 18),
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
                                 onPressed: () {
                                   setState(() {
                                     _selectedImage = null;
@@ -239,10 +384,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
                 padding: const EdgeInsets.only(top: 8),
                 child: Text(
                   'تم اختيار صورة بصيغة $_imageExtension',
-                  style: TextStyle(
-                    color: Colors.green,
-                    fontSize: 12,
-                  ),
+                  style: TextStyle(color: Colors.green, fontSize: 12),
                 ),
               ),
           ],
@@ -385,6 +527,13 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
   }
 
   Widget _buildBudgetSection() {
+    final campaignBudget = _budget;
+    // CORRECTION : Utiliser this.marketplaceFee au lieu de marketplaceFee
+    final calculatedMarketplaceFee = _selectedCampaignType == 'marketplace'
+        ? marketplaceFee
+        : 0.0;
+    final totalDeduction = campaignBudget + calculatedMarketplaceFee;
+
     return Card(
       elevation: 2,
       child: Padding(
@@ -401,8 +550,83 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
               ),
             ),
             const SizedBox(height: 8),
+
+            // Affichage détaillé pour Marketplace
+            if (_selectedCampaignType == 'marketplace')
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        '${campaignBudget.toStringAsFixed(0)} دينار',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          color: Colors.blue,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '(ميزانية الحملة)',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        '+ ${marketplaceFee.toStringAsFixed(1)} دينار', // CORRIGÉ
+                        style: const TextStyle(
+                          fontSize: 16,
+                          color: Colors.green,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '(رسوم السوق)',
+                        style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.account_balance_wallet,
+                          color: Colors.orange[700],
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'سيتم خصم ${totalDeduction.toStringAsFixed(0)} دينار من رصيدك',
+                            style: TextStyle(
+                              color: Colors.orange[800],
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+              ),
+
+            // Budget de campagne
             Text(
-              '${_budget.toStringAsFixed(0)} دينار',
+              '${campaignBudget.toStringAsFixed(0)} دينار',
               style: const TextStyle(
                 fontSize: 24,
                 color: Colors.green,
@@ -410,6 +634,8 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
               ),
             ),
             const SizedBox(height: 16),
+
+            // Slider pour modifier le budget
             Slider(
               value: _budget,
               min: 10,
@@ -424,28 +650,26 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
               },
             ),
             const SizedBox(height: 8),
+
+            // Échelle du slider
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   '10 د',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
                 Text(
                   '1000 د',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
             const SizedBox(height: 8),
+
+            // Nombre de clics estimés
             Text(
-              '~ ${(_budget / _cpc).round()} نقرة متوقعة',
+              '~ ${(campaignBudget / _cpc).round()} نقرة متوقعة',
               style: const TextStyle(fontSize: 12, color: Colors.green),
             ),
           ],
@@ -453,7 +677,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
       ),
     );
   }
-  
+
   Widget _buildCPCSection() {
     return Card(
       elevation: 2,
@@ -499,17 +723,11 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
               children: [
                 Text(
                   '0.05 د',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
                 Text(
                   '0.07 د',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -528,10 +746,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
                   Expanded(
                     child: Text(
                       'السعر المثالي: 0.05 دينار - يوازن بين الجذب والربحية',
-                      style: TextStyle(
-                        color: Colors.green[800],
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.green[800], fontSize: 12),
                     ),
                   ),
                 ],
@@ -587,17 +802,11 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
               children: [
                 Text(
                   '5',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
                 Text(
                   '100',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -616,10 +825,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
                   Expanded(
                     child: Text(
                       'يسمح للمستخدمين بالمشاركة بشكل أكبر مع الحفاظ على فرص للآخرين',
-                      style: TextStyle(
-                        color: Colors.blue[800],
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.blue[800], fontSize: 12),
                     ),
                   ),
                 ],
@@ -632,9 +838,15 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
   }
 
   Widget _buildSummarySection() {
-    final totalClicks = (_budget / _cpc).round();
-    final participantEarnings = _budget * 0.6;
-    final platformEarnings = _budget * 0.4;
+    final campaignBudget = _budget;
+    final calculatedMarketplaceFee = _selectedCampaignType == 'marketplace'
+        ? marketplaceFee
+        : 0.0;
+    final totalDeduction =
+        campaignBudget + calculatedMarketplaceFee; // CORRECTION
+    final totalClicks = (campaignBudget / _cpc).round();
+    final participantEarnings = campaignBudget * 0.6;
+    final platformEarnings = campaignBudget * 0.4;
     final earningsPerClick = _cpc * 0.6;
 
     return Card(
@@ -647,20 +859,35 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
           children: [
             const Text(
               'ملخص الحملة',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-            _buildSummaryRow(
-              'عدد النقرات المتوقعة',
-              '$totalClicks نقرة',
-            ),
-            _buildSummaryRow(
-              'التكلفة الكلية',
-              '${_budget.toStringAsFixed(0)} دينار',
-            ),
+
+            if (_selectedCampaignType == 'marketplace') ...[
+              _buildSummaryRow(
+                'ميزانية الحملة',
+                '${campaignBudget.toStringAsFixed(0)} دينار',
+              ),
+              _buildSummaryRow(
+                'رسوم السوق',
+                '${calculatedMarketplaceFee.toStringAsFixed(0)} دينار', // CORRECTION
+                isHighlighted: true,
+              ),
+              _buildSummaryRow(
+                'إجمالي المبلغ المخصوم',
+                '${totalDeduction.toStringAsFixed(0)} دينار',
+                isHighlighted: true,
+                color: Colors.orange,
+              ),
+            ] else ...[
+              _buildSummaryRow(
+                'ميزانية الحملة',
+                '${campaignBudget.toStringAsFixed(0)} دينار',
+                isHighlighted: true,
+              ),
+            ],
+
+            _buildSummaryRow('عدد النقرات المتوقعة', '$totalClicks نقرة'),
             _buildSummaryRow(
               'للمشاركين',
               '${participantEarnings.toStringAsFixed(0)} دينار',
@@ -673,22 +900,70 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
               'ربح النقرة للمشارك',
               '${earningsPerClick.toStringAsFixed(3)} دينار',
             ),
+
+            // Information importante sur la déduction
+            if (_selectedCampaignType == 'marketplace')
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.warning_amber_rounded,
+                      color: Colors.orange[700],
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'سيتم خصم ${totalDeduction.toStringAsFixed(0)} دينار من رصيد حسابك التجاري',
+                        style: TextStyle(
+                          color: Colors.orange[800],
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSummaryRow(String label, String value) {
+  Widget _buildSummaryRow(
+    String label,
+    String value, {
+    bool isHighlighted = false,
+    Color? color,
+  }) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: TextStyle(color: Colors.grey[700], fontSize: 14)),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.grey[700],
+              fontSize: 14,
+              fontWeight: isHighlighted ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
           Text(
             value,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+              color: color ?? (isHighlighted ? Colors.green : Colors.black),
+            ),
           ),
         ],
       ),
@@ -696,6 +971,17 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
   }
 
   Widget _buildActionButtons() {
+    final campaignBudget = _budget;
+    final calculatedMarketplaceFee = _selectedCampaignType == 'marketplace'
+        ? marketplaceFee
+        : 0.0;
+    final totalDeduction =
+        campaignBudget + calculatedMarketplaceFee; // CORRECTION
+
+    final buttonText = _selectedCampaignType == 'marketplace'
+        ? 'إنشاء الحملة في السوق (${totalDeduction.toStringAsFixed(0)} د)'
+        : 'إنشاء الحملة مباشرة (${campaignBudget.toStringAsFixed(0)} د)';
+
     return Row(
       children: [
         Expanded(
@@ -704,7 +990,9 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
             child: ElevatedButton(
               onPressed: _isLoading ? null : _createCampaign,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
+                backgroundColor: _selectedCampaignType == 'marketplace'
+                    ? Colors.green
+                    : Colors.blue,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -717,14 +1005,12 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
                       width: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(
-                          Colors.white,
-                        ),
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                       ),
                     )
-                  : const Text(
-                      'إنشاء الحملة مباشرة',
-                      style: TextStyle(
+                  : Text(
+                      buttonText,
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
                       ),
@@ -738,9 +1024,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
           width: 100,
           height: 55,
           child: OutlinedButton(
-            onPressed: _isLoading
-                ? null
-                : () => Navigator.of(context).pop(),
+            onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
             style: OutlinedButton.styleFrom(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -768,10 +1052,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
           Expanded(
             child: Text(
               'في وضع التطوير: سيتم إنشاء الحملة مباشرة بدون عملية دفع',
-              style: TextStyle(
-                color: Colors.orange[800],
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.orange[800], fontSize: 12),
             ),
           ),
         ],
@@ -836,8 +1117,16 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
       return;
     }
 
+    final campaignBudget = _budget;
+    final calculatedMarketplaceFee = _selectedCampaignType == 'marketplace'
+        ? marketplaceFee
+        : 0.0;
+    final totalDeduction =
+        campaignBudget +
+        calculatedMarketplaceFee; // CORRECTION: utiliser calculatedMarketplaceFee
+
     final totalCost = _cpc * _targetClicks;
-    if (totalCost > _budget) {
+    if (totalCost > campaignBudget) {
       _showError('الميزانية غير كافية للتكلفة الإجمالية');
       return;
     }
@@ -849,7 +1138,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
       String imageData;
-      
+
       // Convertir l'image en base64
       if (kIsWeb && _imageBytes != null) {
         imageData = _convertToBase64(_imageBytes!, _imageExtension!);
@@ -861,7 +1150,8 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
       }
 
       // Vérifier la taille de l'image base64
-      if (imageData.length > 1000000) { // ~1MB
+      if (imageData.length > 1000000) {
+        // ~1MB
         _showError('حجم الصورة كبير جداً. يرجى اختيار صورة أصغر');
         return;
       }
@@ -872,7 +1162,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
         'description': _descriptionController.text,
         'targetUrl': _targetUrlController.text,
         'type': _getCampaignTypeIndex(_selectedType),
-        'budget': _budget,
+        'budget': campaignBudget, // Budget de campagne
         'cpc': _cpc,
         'targetClicks': _targetClicks,
         'maxClicksPerUser': _maxClicksPerUser,
@@ -890,25 +1180,35 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
         'userId': authProvider.user?.id,
         'userEmail': authProvider.user?.email,
         'userName': authProvider.user?.displayName,
-    //    'companyName': authProvider.companyName,
+        'campaignType':
+            _selectedCampaignType, // Nouveau champ pour distinguer le type
+        'marketplaceFee':
+            calculatedMarketplaceFee, // CORRECTION: utiliser calculatedMarketplaceFee
+        'totalDeduction': totalDeduction, // Total à déduire du compte
       };
 
       // Créer la campagne
-      final campaignProvider = Provider.of<CampaignProvider>(context, listen: false);
+      final campaignProvider = Provider.of<CampaignProvider>(
+        context,
+        listen: false,
+      );
       await campaignProvider.createCampaignDirect(campaignData);
 
       if (mounted) {
+        final successMessage = _selectedCampaignType == 'marketplace'
+            ? 'تم إنشاء الحملة في السوق بنجاح! سيتم خصم ${totalDeduction.toStringAsFixed(0)} دينار من رصيدك'
+            : 'تم إنشاء الحملة بنجاح! سيتم خصم ${campaignBudget.toStringAsFixed(0)} دينار من رصيدك';
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم إنشاء الحملة بنجاح وتم تفعيلها فوراً'),
+          SnackBar(
+            content: Text(successMessage),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 5),
+            duration: const Duration(seconds: 5),
           ),
         );
 
         Navigator.of(context).pop();
       }
-
     } catch (e) {
       _showError('فشل في إنشاء الحملة: $e');
     } finally {
@@ -923,7 +1223,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
   String _convertToBase64(Uint8List imageBytes, String extension) {
     try {
       final base64String = base64.encode(imageBytes);
-      
+
       String mimeType;
       switch (extension.toLowerCase()) {
         case 'jpg':
@@ -945,7 +1245,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
         default:
           mimeType = 'jpeg';
       }
-      
+
       return 'data:image/$mimeType;base64,$base64String';
     } catch (e) {
       throw Exception('فشل في تحويل الصورة إلى base64: $e');
@@ -954,10 +1254,7 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
 
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
     );
   }
 
@@ -989,7 +1286,10 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
 
   Future<void> _createTestCampaigns() async {
     try {
-      final campaignProvider = Provider.of<CampaignProvider>(context, listen: false);
+      final campaignProvider = Provider.of<CampaignProvider>(
+        context,
+        listen: false,
+      );
       await campaignProvider.createTestCampaigns(3);
 
       if (mounted) {
@@ -1020,83 +1320,5 @@ class _CreateCampaignWithImageScreenState extends State<CreateCampaignWithImageS
     _descriptionController.dispose();
     _targetUrlController.dispose();
     super.dispose();
-  }
-}
-
-// Classe utilitaire pour la gestion des images base64
-class Base64ImageHelper {
-  static String convertToBase64(Uint8List imageBytes, {String format = 'jpeg'}) {
-    try {
-      final base64String = base64.encode(imageBytes);
-      return 'data:image/$format;base64,$base64String';
-    } catch (e) {
-      print('Error converting image to base64: $e');
-      return '';
-    }
-  }
-
-  static Uint8List? convertFromBase64(String base64String) {
-    try {
-      String data = base64String;
-      if (base64String.startsWith('data:image/')) {
-        final parts = base64String.split(',');
-        if (parts.length > 1) data = parts[1];
-      }
-      return base64.decode(data);
-    } catch (e) {
-      print('Error converting base64 to image: $e');
-      return null;
-    }
-  }
-
-  static bool isValidBase64Image(String data) {
-    if (data.isEmpty) return false;
-    try {
-      if (data.startsWith('data:image/')) {
-        final parts = data.split(',');
-        if (parts.length != 2) return false;
-        base64.decode(parts[1]);
-        return true;
-      } else {
-        base64.decode(data);
-        return true;
-      }
-    } catch (e) {
-      return false;
-    }
-  }
-
-  static String getImageFormat(String base64String) {
-    if (base64String.startsWith('data:image/')) {
-      final parts = base64String.split(';');
-      if (parts.isNotEmpty) {
-        final format = parts[0].replaceAll('data:image/', '');
-        return format;
-      }
-    }
-    return 'jpeg';
-  }
-
-  static int getBase64Size(String base64String) {
-    try {
-      String data = base64String;
-      if (base64String.startsWith('data:image/')) {
-        final parts = base64String.split(',');
-        if (parts.length > 1) data = parts[1];
-      }
-      return data.length;
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  static double getBase64SizeInKB(String base64String) {
-    final size = getBase64Size(base64String);
-    return size / 1024;
-  }
-
-  static double getBase64SizeInMB(String base64String) {
-    final size = getBase64Size(base64String);
-    return size / (1024 * 1024);
   }
 }

@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:reshare/data/models/click_model.dart';
+import 'package:reshare/features/auth/presentation/providers/auth_provider.dart';
+import 'package:reshare/features/auth/presentation/providers/marketplace_provider.dart';
+import 'package:reshare/features/auth/presentation/screens/marketplace_screen.dart';
+import 'package:reshare/features/campaigns/presentation/screens/campaigns_screen.dart';
+import 'package:reshare/features/earnings/presentation/screens/earnings_screen.dart';
 
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_strings.dart';
@@ -9,7 +14,7 @@ import '../../../../data/models/campaign_model.dart';
 import '../../../../presentation/widgets/campaign/campaign_card.dart';
 import '../../../../presentation/widgets/earnings/stats_grid.dart';
 import '../providers/dashboard_provider.dart';
-
+// NOUVEAUX IMPORTS MARKETPLACE
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
@@ -67,6 +72,20 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  // NOUVELLE MÉTHODE: Navigation vers Marketplace
+ void _navigateToMarketplace(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChangeNotifierProvider(
+          create: (context) => MarketplaceProvider()
+            ..updateAuth(Provider.of<AuthProvider>(context, listen: false)),
+          child: const MarketplaceScreen(),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<DashboardProvider>(
@@ -93,17 +112,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+
                       // Welcome Section
                       _buildWelcomeSection(dashboardProvider),
                       const SizedBox(height: 24),
-
+            // Marketplace Banner - NOUVEAU
+                      _buildMarketplaceBanner(context),
+                      const SizedBox(height: 24),
                       // Quick Stats
                       _buildQuickStats(stats),
                       const SizedBox(height: 24),
 
-                      // Quick Actions
-                      _buildQuickActions(),
-                      const SizedBox(height: 24),
+                      
+
+          
 
                       // Earnings Overview
                       _buildEarningsOverview(stats),
@@ -118,7 +140,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _buildSectionHeader(
                       title: 'الحملات الموصى بها 🔥',
                       onSeeAll: () {
-                        // Navigate to campaigns with recommended filter
+                        _navigateToMarketplace(context);
                       },
                     ),
                   ),
@@ -134,7 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: _buildSectionHeader(
                     title: 'الحملات المتاحة',
                     onSeeAll: () {
-                      // Navigate to all campaigns
+                      _navigateToMarketplace(context);
                     },
                   ),
                 ),
@@ -165,8 +187,8 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           
-          // 🔥 NOUVEAU: Floating Action Button for quick share
-      //    floatingActionButton: _buildQuickShareButton(),
+          // 🔥 NOUVEAU: Floating Action Button for marketplace
+          floatingActionButton: _buildMarketplaceFAB(context),
           floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
         );
       },
@@ -187,6 +209,8 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 24),
             _buildQuickActions(),
             const SizedBox(height: 24),
+            _buildMarketplaceBannerShimmer(),
+            const SizedBox(height: 24),
             _buildEarningsOverviewShimmer(),
             const SizedBox(height: 24),
             _buildCampaignsShimmer(),
@@ -196,9 +220,178 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // NOUVELLE MÉTHODE: Bannière Marketplace
+  Widget _buildMarketplaceBanner(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _navigateToMarketplace(context),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [Colors.purple.shade600, Colors.blue.shade600],
+          ),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.purple.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.storefront_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'سوق الحملات 🛍️',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                      fontFamily: 'Tajawal',
+                    ),
+                  ),
+                  Text(
+                    'اكتشف أفضل الحملات واربح أكثر مع المجتمع',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.white.withOpacity(0.9),
+                      fontFamily: 'Tajawal',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'استكشف',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.purple.shade700,
+                      fontFamily: 'Tajawal',
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_forward_ios_rounded,
+                    size: 12,
+                    color: Colors.purple.shade700,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMarketplaceBannerShimmer() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[300],
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.grey[400],
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 120,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: 180,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[400],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: 60,
+            height: 32,
+            decoration: BoxDecoration(
+              color: Colors.grey[400],
+              borderRadius: BorderRadius.circular(20),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // NOUVELLE MÉTHODE: FAB Marketplace
+  Widget _buildMarketplaceFAB(BuildContext context) {
+    return FloatingActionButton.extended(
+      onPressed: () => _navigateToMarketplace(context),
+      icon: const Icon(Icons.store_rounded),
+      label: const Text(
+        'سوق الحملات',
+        style: TextStyle(fontFamily: 'Tajawal'),
+      ),
+      backgroundColor: Colors.purple,
+      foregroundColor: Colors.white,
+      elevation: 4,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(25),
+      ),
+    );
+  }
+
   Widget _buildWelcomeSection(DashboardProvider provider) {
     return Container(
       width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -265,6 +458,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildWelcomeSectionShimmer() {
     return Container(
       width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -383,6 +577,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildQuickStats(DashboardStats stats) {
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -423,6 +618,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildQuickStatsShimmer() {
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -516,61 +712,75 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
-
-  Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'الإجراءات السريعة',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: AppColors.textPrimary,
-            fontFamily: 'Tajawal',
+Widget _buildQuickActions() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'الإجراءات السريعة',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+              fontFamily: 'Tajawal',
+            ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildQuickActionItem(
-                icon: Icons.campaign_rounded,
-                title: 'الحملات',
-                subtitle: 'شارك واربح',
-                color: AppColors.primary,
-                onTap: () {
-                  // Navigate to campaigns
-                },
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildQuickActionItem(
+                  icon: Icons.campaign_rounded,
+                  title: 'الحملات',
+                  subtitle: 'شارك واربح',
+                  color: AppColors.primary,
+                  onTap: () {
+                    // Navigation vers CampaignsScreen existant
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CampaignsScreen(),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildQuickActionItem(
-                icon: Icons.people_alt_rounded,
-                title: 'الإحالات',
-                subtitle: 'ادعُ أصدقاءك',
-                color: AppColors.secondary,
-                onTap: () {
-                  // Navigate to referrals
-                },
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildQuickActionItem(
+                  icon: Icons.store_rounded,
+                  title: 'السوق',
+                  subtitle: 'اكتشف الحملات',
+                  color: Colors.purple,
+                  onTap: () {
+                    _navigateToMarketplace(context);
+                  },
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildQuickActionItem(
-                icon: Icons.attach_money_rounded,
-                title: 'سحب الأموال',
-                subtitle: 'احصل على أرباحك',
-                color: AppColors.success,
-                onTap: () {
-                  // Navigate to withdrawal
-                },
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildQuickActionItem(
+                  icon: Icons.attach_money_rounded,
+                  title: 'الأرباح',
+                  subtitle: 'رصيدك وأرباحك',
+                  color: AppColors.success,
+                  onTap: () {
+                    // Navigation vers EarningsScreen existant
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const EarningsScreen(),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -628,6 +838,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildEarningsOverview(DashboardStats stats) {
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -705,6 +916,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildEarningsOverviewShimmer() {
     return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -977,49 +1189,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildAvailableCampaigns(
-    List<CampaignModel> campaigns,
-    DashboardProvider provider,
-  ) {
-    if (provider.isLoading && campaigns.isEmpty) {
-      return _buildLoadingCampaigns();
-    }
-
-    if (campaigns.isEmpty) {
-      return _buildEmptyCampaigns();
-    }
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: campaigns
-            .take(3)
-            .map(
-              (campaign) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: CampaignCard(campaign: campaign),
-              ),
-            )
-            .toList(),
-      ),
-    );
-  }
-
-  Widget _buildLoadingCampaigns() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: [
-          _CampaignShimmer(),
-          SizedBox(height: 12),
-          _CampaignShimmer(),
-          SizedBox(height: 12),
-          _CampaignShimmer(),
-        ],
-      ),
-    );
-  }
-
   Widget _buildCampaignsShimmer() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1049,52 +1218,6 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildEmptyCampaigns() {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.all(40),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Icon(
-            Icons.campaign_rounded,
-            size: 64,
-            color: AppColors.textSecondary.withOpacity(0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'لا توجد حملات متاحة حالياً',
-            style: TextStyle(
-              fontSize: 16,
-              color: AppColors.textSecondary,
-              fontFamily: 'Tajawal',
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'ارجع لاحقاً للتحقق من الحملات الجديدة',
-            style: TextStyle(
-              fontSize: 14,
-              color: AppColors.textSecondary.withOpacity(0.7),
-              fontFamily: 'Tajawal',
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ),
     );
   }
 
@@ -1233,58 +1356,6 @@ class _HomeScreenState extends State<HomeScreen> {
           textAlign: TextAlign.center,
         ),
       ],
-    );
-  }
-
-  Widget _buildQuickShareButton() {
-    return FloatingActionButton.extended(
-      onPressed: () {
-        // Quick share functionality
-        _showQuickShareOptions();
-      },
-      icon: const Icon(Icons.share_rounded),
-      label: const Text(
-        'مشاركة سريعة',
-        style: TextStyle(fontFamily: 'Tajawal'),
-      ),
-      backgroundColor: AppColors.primary,
-      foregroundColor: Colors.white,
-      elevation: 4,
-    );
-  }
-
-  void _showQuickShareOptions() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'مشاركة سريعة',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                  fontFamily: 'Tajawal',
-                ),
-              ),
-              const SizedBox(height: 16),
-              // Add quick share options here
-              const Text(
-                'اختر حملة للمشاركة السريعة...',
-                style: TextStyle(fontFamily: 'Tajawal'),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        );
-      },
     );
   }
 

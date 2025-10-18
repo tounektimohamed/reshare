@@ -117,7 +117,7 @@ Future<List<CampaignModel>> getAvailableCampaigns({
   Future<void> recordCampaignShare({
     required String userId,
     required String campaignId,
-    required String shareLink,
+    required String shareLink, required String location,
   }) async {
     try {
       await _firestore.collection('shares').add({

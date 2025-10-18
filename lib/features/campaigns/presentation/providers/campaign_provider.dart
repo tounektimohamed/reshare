@@ -75,38 +75,33 @@ class CampaignProvider with ChangeNotifier {
   }
 
   /// Charger les campagnes de l'utilisateur
-Future<void> _loadUserCampaigns() async {
-  try {
-    final user = _authProvider!.user!;
+  Future<void> _loadUserCampaigns() async {
+    try {
+      final user = _authProvider!.user!;
 
-    if (user.userType == UserType.business || user.userType == UserType.admin) {
-      final snapshot = await FirebaseFirestore.instance
-          .collection('campaigns')
-          .where('advertiserId', isEqualTo: user.id)
-          .get();
+      if (user.userType == UserType.business ||
+          user.userType == UserType.admin) {
+        final snapshot = await FirebaseFirestore.instance
+            .collection('campaigns')
+            .where('advertiserId', isEqualTo: user.id)
+            .get();
 
-      _userCampaigns = snapshot.docs
-          .map((doc) {
-            final data = doc.data();
-            return CampaignModel.fromMap({
-              ...data,
-              'id': doc.id,
-            });
-          })
-          .toList();
+        _userCampaigns = snapshot.docs.map((doc) {
+          final data = doc.data();
+          return CampaignModel.fromMap({...data, 'id': doc.id});
+        }).toList();
 
-      // 🧠 Tri local côté client
-      _userCampaigns.sort((a, b) {
-        final aDate = a.createdAt ?? DateTime(0);
-        final bDate = b.createdAt ?? DateTime(0);
-        return bDate.compareTo(aDate); // Tri décroissant
-      });
+        // 🧠 Tri local côté client
+        _userCampaigns.sort((a, b) {
+          final aDate = a.createdAt ?? DateTime(0);
+          final bDate = b.createdAt ?? DateTime(0);
+          return bDate.compareTo(aDate); // Tri décroissant
+        });
+      }
+    } catch (e) {
+      print('فشل في تحميل حملات المستخدم: $e');
     }
-  } catch (e) {
-    print('فشل في تحميل حملات المستخدم: $e');
   }
-}
-
 
   /// Créer une campagne directement (sans paiement)
   Future<void> createCampaignDirect(Map<String, dynamic> campaignData) async {
@@ -127,17 +122,20 @@ Future<void> _loadUserCampaigns() async {
       if (result['success'] == true) {
         // Recharger les campagnes de l'utilisateur
         await _loadUserCampaigns();
-        
+
         // Recharger les campagnes disponibles
         await loadCampaigns();
 
         // Envoyer une notification de succès
-        await _cloudFunctions.callFunction('sendUserNotification', parameters: {
-          'userId': _authProvider!.user!.id,
-          'title': 'تم إنشاء الحملة بنجاح! 🚀',
-          'body': 'حملتك "${campaignData['title']}" مفعلة وجاهزة للمشاركة',
-          'type': 'campaign_created',
-        });
+        await _cloudFunctions.callFunction(
+          'sendUserNotification',
+          parameters: {
+            'userId': _authProvider!.user!.id,
+            'title': 'تم إنشاء الحملة بنجاح! 🚀',
+            'body': 'حملتك "${campaignData['title']}" مفعلة وجاهزة للمشاركة',
+            'type': 'campaign_created',
+          },
+        );
       } else {
         throw Exception(result['error'] ?? 'فشل في إنشاء الحملة');
       }
@@ -249,10 +247,7 @@ Future<void> _loadUserCampaigns() async {
       // Appeler Cloud Function pour partager la campagne
       final result = await _cloudFunctions.callFunction(
         'generateTrackingLink',
-        parameters: {
-          'campaignId': campaign.id,
-          'participantId': user.id,
-        },
+        parameters: {'campaignId': campaign.id, 'participantId': user.id},
       );
 
       if (result['success'] == true) {
@@ -264,6 +259,7 @@ Future<void> _loadUserCampaigns() async {
           userId: user.id,
           campaignId: campaign.id,
           shareLink: shareLink,
+          location: locationString,
         );
 
         // Partager le lien
@@ -274,13 +270,16 @@ Future<void> _loadUserCampaigns() async {
 
         if (shared) {
           // Envoyer une notification de succès
-          await _cloudFunctions.callFunction('sendUserNotification', parameters: {
-            'userId': user.id,
-            'title': 'تمت المشاركة بنجاح! 🎯',
-            'body': 'حملة "${campaign.title}" جاهزة للمشاركة',
-            'type': 'campaign_shared',
-            'data': {'campaignId': campaign.id, 'shareId': shareId},
-          });
+          await _cloudFunctions.callFunction(
+            'sendUserNotification',
+            parameters: {
+              'userId': user.id,
+              'title': 'تمت المشاركة بنجاح! 🎯',
+              'body': 'حملة "${campaign.title}" جاهزة للمشاركة',
+              'type': 'campaign_shared',
+              'data': {'campaignId': campaign.id, 'shareId': shareId},
+            },
+          );
         }
       } else {
         throw Exception(result['error'] ?? 'فشل في مشاركة الحملة');
@@ -324,33 +323,43 @@ Future<void> _loadUserCampaigns() async {
       final locationData = location?.toMap();
 
       // Appeler Cloud Function pour traiter le clic
-      final result = await _cloudFunctions.callFunction('clickHandler', parameters: {
-        'trackingId': trackingId,
-        'ipAddress': ipAddress,
-        'userAgent': userAgent,
-        'deviceHash': deviceHash,
-        'locationData': locationData,
-      });
+      final result = await _cloudFunctions.callFunction(
+        'clickHandler',
+        parameters: {
+          'trackingId': trackingId,
+          'ipAddress': ipAddress,
+          'userAgent': userAgent,
+          'deviceHash': deviceHash,
+          'locationData': locationData,
+        },
+      );
 
       if (result['success'] == true && _authProvider?.user != null) {
         final earnings = result['earnings'] ?? 0.0;
-        
+
         if (earnings > 0) {
           // Mettre à jour le solde de l'utilisateur
-          await _cloudFunctions.callFunction('updateUserBalance', parameters: {
-            'userId': _authProvider!.user!.id,
-            'amount': earnings,
-            'transactionType': 'click_earning',
-            'description': 'أرباح من نقرة صالحة',
-          });
+          await _cloudFunctions.callFunction(
+            'updateUserBalance',
+            parameters: {
+              'userId': _authProvider!.user!.id,
+              'amount': earnings,
+              'transactionType': 'click_earning',
+              'description': 'أرباح من نقرة صالحة',
+            },
+          );
 
           // Envoyer une notification de gains
-          await _cloudFunctions.callFunction('sendUserNotification', parameters: {
-            'userId': _authProvider!.user!.id,
-            'title': 'أرباح جديدة! 💰',
-            'body': 'لقد ربحت ${earnings.toStringAsFixed(3)} دينار من مشاركاتك',
-            'type': 'earning_received',
-          });
+          await _cloudFunctions.callFunction(
+            'sendUserNotification',
+            parameters: {
+              'userId': _authProvider!.user!.id,
+              'title': 'أرباح جديدة! 💰',
+              'body':
+                  'لقد ربحت ${earnings.toStringAsFixed(3)} دينار من مشاركاتك',
+              'type': 'earning_received',
+            },
+          );
         }
       }
     } catch (e) {
@@ -404,13 +413,17 @@ Future<void> _loadUserCampaigns() async {
 
     if (_filter.minEarnings != null) {
       filtered = filtered
-          .where((campaign) => campaign.participantEarnings >= _filter.minEarnings!)
+          .where(
+            (campaign) => campaign.participantEarnings >= _filter.minEarnings!,
+          )
           .toList();
     }
 
     if (_filter.maxEarnings != null) {
       filtered = filtered
-          .where((campaign) => campaign.participantEarnings <= _filter.maxEarnings!)
+          .where(
+            (campaign) => campaign.participantEarnings <= _filter.maxEarnings!,
+          )
           .toList();
     }
 
@@ -489,8 +502,8 @@ Future<void> _loadUserCampaigns() async {
   /// Créer une nouvelle campagne (méthode legacy avec paiement)
   Future<void> createCampaign(Map<String, dynamic> campaignData) async {
     if (_authProvider?.user == null ||
-        (_authProvider!.user!.userType != UserType.business && 
-         _authProvider!.user!.userType != UserType.admin)) {
+        (_authProvider!.user!.userType != UserType.business &&
+            _authProvider!.user!.userType != UserType.admin)) {
       _setError('غير مصرح لك بإنشاء حملات');
       return;
     }
@@ -500,7 +513,7 @@ Future<void> _loadUserCampaigns() async {
       _clearError();
 
       final user = _authProvider!.user!;
-      
+
       // Utiliser advertiserId au lieu de businessId pour correspondre au modèle
       campaignData['advertiserId'] = user.id;
 
@@ -514,12 +527,15 @@ Future<void> _loadUserCampaigns() async {
         await _loadUserCampaigns();
 
         // Envoyer une notification de succès
-        await _cloudFunctions.callFunction('sendUserNotification', parameters: {
-          'userId': user.id,
-          'title': 'تم إنشاء الحملة بنجاح! 🚀',
-          'body': 'حملتك "${campaignData['title']}" قيد المراجعة',
-          'type': 'campaign_created',
-        });
+        await _cloudFunctions.callFunction(
+          'sendUserNotification',
+          parameters: {
+            'userId': user.id,
+            'title': 'تم إنشاء الحملة بنجاح! 🚀',
+            'body': 'حملتك "${campaignData['title']}" قيد المراجعة',
+            'type': 'campaign_created',
+          },
+        );
       } else {
         throw Exception(result['error'] ?? 'فشل في إنشاء الحملة');
       }
@@ -540,9 +556,9 @@ Future<void> _loadUserCampaigns() async {
   Future<void> resetTestCampaigns() async {
     try {
       _setLoading(true);
-      
+
       final result = await _cloudFunctions.callFunction('resetTestCampaigns');
-      
+
       if (result['success'] == true) {
         await _loadUserCampaigns();
         await loadCampaigns();
