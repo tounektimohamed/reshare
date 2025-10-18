@@ -33,7 +33,7 @@ class _CreateCampaignWithImageScreenState
   String _selectedType = 'open';
   int _maxClicksPerUser = 5;
   int _targetClicks = 1000;
-  String _selectedCampaignType = 'ads'; // 'ads' ou 'marketplace'
+  String _selectedCampaignType = 'ads';
 
   CampaignType _campaignType = CampaignType.open;
   File? _selectedImage;
@@ -109,7 +109,6 @@ class _CreateCampaignWithImageScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Nouvelle section pour choisir le type de campagne
               _buildCampaignTypeSelection(),
               const SizedBox(height: 16),
               _buildImageSection(),
@@ -140,7 +139,6 @@ class _CreateCampaignWithImageScreenState
     );
   }
 
-  // Nouvelle section pour choisir entre Ads et Marketplace
   Widget _buildCampaignTypeSelection() {
     return Card(
       elevation: 2,
@@ -169,7 +167,6 @@ class _CreateCampaignWithImageScreenState
                     onTap: () {
                       setState(() {
                         _selectedCampaignType = 'ads';
-                        // Réinitialiser les valeurs par défaut pour Ads
                         _cpc = 0.06;
                         _budget = 60.0;
                         _targetClicks = (_budget / _cpc).round();
@@ -182,14 +179,12 @@ class _CreateCampaignWithImageScreenState
                 Expanded(
                   child: _buildCampaignTypeCard(
                     title: 'سوق الحملات',
-                    subtitle:
-                        '+ ${marketplaceFee.toStringAsFixed(1)} دينار رسوم سوق', // CORRIGÉ
+                    subtitle: '+ ${marketplaceFee.toStringAsFixed(1)} دينار رسوم سوق',
                     icon: Icons.store,
                     isSelected: _selectedCampaignType == 'marketplace',
                     onTap: () {
                       setState(() {
                         _selectedCampaignType = 'marketplace';
-                        // Garder le même budget mais ajouter les frais
                         _cpc = 0.06;
                         _targetClicks = (_budget / _cpc).round();
                       });
@@ -214,7 +209,7 @@ class _CreateCampaignWithImageScreenState
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'سيتم خصم ${marketplaceFee.toStringAsFixed(1)} دينار إضافية كرسوم لنشر الحملة في السوق', // CORRIGÉ
+                        'سيتم خصم ${marketplaceFee.toStringAsFixed(1)} دينار إضافية كرسوم لنشر الحملة في السوق',
                         style: TextStyle(
                           color: Colors.green[800],
                           fontSize: 12,
@@ -340,16 +335,16 @@ class _CreateCampaignWithImageScreenState
                                   ),
                                 )
                               : _selectedImage != null
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: Image.file(
-                                    _selectedImage!,
-                                    width: double.infinity,
-                                    height: double.infinity,
-                                    fit: BoxFit.cover,
-                                  ),
-                                )
-                              : Container(),
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.file(
+                                        _selectedImage!,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        fit: BoxFit.cover,
+                                      ),
+                                    )
+                                  : Container(),
                           Positioned(
                             top: 8,
                             right: 8,
@@ -528,7 +523,6 @@ class _CreateCampaignWithImageScreenState
 
   Widget _buildBudgetSection() {
     final campaignBudget = _budget;
-    // CORRECTION : Utiliser this.marketplaceFee au lieu de marketplaceFee
     final calculatedMarketplaceFee = _selectedCampaignType == 'marketplace'
         ? marketplaceFee
         : 0.0;
@@ -551,7 +545,6 @@ class _CreateCampaignWithImageScreenState
             ),
             const SizedBox(height: 8),
 
-            // Affichage détaillé pour Marketplace
             if (_selectedCampaignType == 'marketplace')
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -577,7 +570,7 @@ class _CreateCampaignWithImageScreenState
                   Row(
                     children: [
                       Text(
-                        '+ ${marketplaceFee.toStringAsFixed(1)} دينار', // CORRIGÉ
+                        '+ ${marketplaceFee.toStringAsFixed(1)} دينار',
                         style: const TextStyle(
                           fontSize: 16,
                           color: Colors.green,
@@ -624,7 +617,6 @@ class _CreateCampaignWithImageScreenState
                 ],
               ),
 
-            // Budget de campagne
             Text(
               '${campaignBudget.toStringAsFixed(0)} دينار',
               style: const TextStyle(
@@ -635,7 +627,6 @@ class _CreateCampaignWithImageScreenState
             ),
             const SizedBox(height: 16),
 
-            // Slider pour modifier le budget
             Slider(
               value: _budget,
               min: 10,
@@ -651,7 +642,6 @@ class _CreateCampaignWithImageScreenState
             ),
             const SizedBox(height: 8),
 
-            // Échelle du slider
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -667,7 +657,6 @@ class _CreateCampaignWithImageScreenState
             ),
             const SizedBox(height: 8),
 
-            // Nombre de clics estimés
             Text(
               '~ ${(campaignBudget / _cpc).round()} نقرة متوقعة',
               style: const TextStyle(fontSize: 12, color: Colors.green),
@@ -842,8 +831,7 @@ class _CreateCampaignWithImageScreenState
     final calculatedMarketplaceFee = _selectedCampaignType == 'marketplace'
         ? marketplaceFee
         : 0.0;
-    final totalDeduction =
-        campaignBudget + calculatedMarketplaceFee; // CORRECTION
+    final totalDeduction = campaignBudget + calculatedMarketplaceFee;
     final totalClicks = (campaignBudget / _cpc).round();
     final participantEarnings = campaignBudget * 0.6;
     final platformEarnings = campaignBudget * 0.4;
@@ -870,7 +858,7 @@ class _CreateCampaignWithImageScreenState
               ),
               _buildSummaryRow(
                 'رسوم السوق',
-                '${calculatedMarketplaceFee.toStringAsFixed(0)} دينار', // CORRECTION
+                '${calculatedMarketplaceFee.toStringAsFixed(0)} دينار',
                 isHighlighted: true,
               ),
               _buildSummaryRow(
@@ -901,7 +889,6 @@ class _CreateCampaignWithImageScreenState
               '${earningsPerClick.toStringAsFixed(3)} دينار',
             ),
 
-            // Information importante sur la déduction
             if (_selectedCampaignType == 'marketplace')
               Container(
                 margin: const EdgeInsets.only(top: 12),
@@ -975,8 +962,7 @@ class _CreateCampaignWithImageScreenState
     final calculatedMarketplaceFee = _selectedCampaignType == 'marketplace'
         ? marketplaceFee
         : 0.0;
-    final totalDeduction =
-        campaignBudget + calculatedMarketplaceFee; // CORRECTION
+    final totalDeduction = campaignBudget + calculatedMarketplaceFee;
 
     final buttonText = _selectedCampaignType == 'marketplace'
         ? 'إنشاء الحملة في السوق (${totalDeduction.toStringAsFixed(0)} د)'
@@ -1107,119 +1093,120 @@ class _CreateCampaignWithImageScreenState
     });
   }
 
-  Future<void> _createCampaign() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    if (_selectedImage == null && _imageBytes == null) {
-      _showError('الرجاء اختيار صورة للحملة');
-      return;
-    }
-
-    final campaignBudget = _budget;
-    final calculatedMarketplaceFee = _selectedCampaignType == 'marketplace'
-        ? marketplaceFee
-        : 0.0;
-    final totalDeduction =
-        campaignBudget +
-        calculatedMarketplaceFee; // CORRECTION: utiliser calculatedMarketplaceFee
-
-    final totalCost = _cpc * _targetClicks;
-    if (totalCost > campaignBudget) {
-      _showError('الميزانية غير كافية للتكلفة الإجمالية');
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      String imageData;
-
-      // Convertir l'image en base64
-      if (kIsWeb && _imageBytes != null) {
-        imageData = _convertToBase64(_imageBytes!, _imageExtension!);
-      } else if (_selectedImage != null) {
-        final bytes = await _selectedImage!.readAsBytes();
-        imageData = _convertToBase64(bytes, _imageExtension!);
-      } else {
-        throw Exception('لا توجد صورة مرفوعة');
-      }
-
-      // Vérifier la taille de l'image base64
-      if (imageData.length > 1000000) {
-        // ~1MB
-        _showError('حجم الصورة كبير جداً. يرجى اختيار صورة أصغر');
-        return;
-      }
-
-      // Préparer les données de la campagne
-      final campaignData = {
-        'title': _titleController.text,
-        'description': _descriptionController.text,
-        'targetUrl': _targetUrlController.text,
-        'type': _getCampaignTypeIndex(_selectedType),
-        'budget': campaignBudget, // Budget de campagne
-        'cpc': _cpc,
-        'targetClicks': _targetClicks,
-        'maxClicksPerUser': _maxClicksPerUser,
-        'imageUrl': imageData, // Base64
-        'imageExtension': _imageExtension,
-        'createdAt': DateTime.now().toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
-        'status': CampaignStatus.pending.index,
-        'isActive': true,
-        'spent': 0.0,
-        'achievedClicks': 0,
-        'uniqueClicks': 0,
-        'conversionRate': 0.0,
-        'conversions': 0,
-        'userId': authProvider.user?.id,
-        'userEmail': authProvider.user?.email,
-        'userName': authProvider.user?.displayName,
-        'campaignType':
-            _selectedCampaignType, // Nouveau champ pour distinguer le type
-        'marketplaceFee':
-            calculatedMarketplaceFee, // CORRECTION: utiliser calculatedMarketplaceFee
-        'totalDeduction': totalDeduction, // Total à déduire du compte
-      };
-
-      // Créer la campagne
-      final campaignProvider = Provider.of<CampaignProvider>(
-        context,
-        listen: false,
-      );
-      await campaignProvider.createCampaignDirect(campaignData);
-
-      if (mounted) {
-        final successMessage = _selectedCampaignType == 'marketplace'
-            ? 'تم إنشاء الحملة في السوق بنجاح! سيتم خصم ${totalDeduction.toStringAsFixed(0)} دينار من رصيدك'
-            : 'تم إنشاء الحملة بنجاح! سيتم خصم ${campaignBudget.toStringAsFixed(0)} دينار من رصيدك';
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(successMessage),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-
-        Navigator.of(context).pop();
-      }
-    } catch (e) {
-      _showError('فشل في إنشاء الحملة: $e');
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
+  // 🔥 CORRECTION COMPLÈTE DE LA MÉTHODE _createCampaign
+ // 🔥 CORRECTION : Dans la méthode _createCampaign()
+Future<void> _createCampaign() async {
+  if (!_formKey.currentState!.validate()) {
+    return;
   }
 
+  if (_selectedImage == null && _imageBytes == null) {
+    _showError('الرجاء اختيار صورة للحملة');
+    return;
+  }
+
+  final campaignBudget = _budget;
+  final calculatedMarketplaceFee = _selectedCampaignType == 'marketplace'
+      ? marketplaceFee
+      : 0.0;
+  final totalDeduction = campaignBudget + calculatedMarketplaceFee;
+
+  final totalCost = _cpc * _targetClicks;
+  if (totalCost > campaignBudget) {
+    _showError('الميزانية غير كافية للتكلفة الإجمالية');
+    return;
+  }
+
+  setState(() {
+    _isLoading = true;
+  });
+
+  try {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    String imageData;
+
+    // Convertir l'image en base64
+    if (kIsWeb && _imageBytes != null) {
+      imageData = _convertToBase64(_imageBytes!, _imageExtension!);
+    } else if (_selectedImage != null) {
+      final bytes = await _selectedImage!.readAsBytes();
+      imageData = _convertToBase64(bytes, _imageExtension!);
+    } else {
+      throw Exception('لا توجد صورة مرفوعة');
+    }
+
+    // Vérifier la taille de l'image base64
+    if (imageData.length > 1000000) {
+      _showError('حجم الصورة كبير جداً. يرجى اختيار صورة أصغر');
+      return;
+    }
+
+    // 🔥 CORRECTION : CRÉATION AVEC STATUT ACTIF POUR MARKETPLACE
+    final campaign = CampaignModel(
+      id: 'campaign_${DateTime.now().millisecondsSinceEpoch}',
+      businessId: authProvider.user?.id ?? '',
+      title: _titleController.text,
+      description: _descriptionController.text,
+      targetUrl: _targetUrlController.text,
+      type: _getCampaignTypeFromString(_selectedType),
+      budget: campaignBudget,
+      cpc: _cpc,
+      targetClicks: _targetClicks,
+      maxClicksPerUser: _maxClicksPerUser,
+      createdAt: DateTime.now(),
+      imageUrl: imageData,
+      imageExtension: _imageExtension,
+      imagePath: 'campaigns/campaign_${DateTime.now().millisecondsSinceEpoch}/image.$_imageExtension',
+      
+      // 🔥 CORRECTION : AJOUT DES NOUVEAUX CHAMPS
+      campaignType: _selectedCampaignType,
+      marketplaceFee: calculatedMarketplaceFee,
+      totalDeduction: totalDeduction,
+      advertiserId: authProvider.user?.id,
+      
+      // 🔥 CORRECTION IMPORTANTE : Statut ACTIF pour marketplace
+      status: _selectedCampaignType == 'marketplace' 
+          ? CampaignStatus.active  // 🔥 2 = Actif immédiatement pour marketplace
+          : CampaignStatus.pending, // 🔥 0 = En attente pour les ads
+      spent: 0.0,
+      achievedClicks: 0,
+      uniqueClicks: 0,
+      conversionRate: 0.0,
+      conversions: 0,
+      isActive: true,
+    );
+
+    print('🎯 Création campagne avec statut: ${campaign.status.index} (${campaign.status})');
+
+    // 🔥 UTILISER LA NOUVELLE MÉTHODE AVEC MODÈLE
+    final campaignProvider = Provider.of<CampaignProvider>(context, listen: false);
+    await campaignProvider.createCampaignWithModel(campaign);
+
+    if (mounted) {
+      final successMessage = _selectedCampaignType == 'marketplace'
+          ? 'تم إنشاء الحملة في السوق بنجاح! سيتم خصم ${totalDeduction.toStringAsFixed(0)} دينار من رصيدك'
+          : 'تم إنشاء الحملة بنجاح! سيتم خصم ${campaignBudget.toStringAsFixed(0)} دينار من رصيدك';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(successMessage),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 5),
+        ),
+      );
+
+      Navigator.of(context).pop();
+    }
+  } catch (e) {
+    _showError('فشل في إنشاء الحملة: $e');
+  } finally {
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+}
   String _convertToBase64(Uint8List imageBytes, String extension) {
     try {
       final base64String = base64.encode(imageBytes);

@@ -409,6 +409,12 @@ exports.getRecommendedCampaigns = functions.https.onCall(async (data, context) =
     for (const doc of campaignsSnapshot.docs) {
       const rawData = doc.data();
 
+      // ✅ Correction automatique du statut numérique vers texte
+      const status = rawData.status;
+      if (status === 2 && !rawData.statusText) {
+        rawData.statusText = 'active';
+      }
+
       console.log(`📝 Processing campaign: ${rawData.title}`, rawData);
 
       // Vérifier si l'utilisateur a déjà cliqué
@@ -1238,7 +1244,7 @@ exports.clickHandler = functions.https.onRequest(async (req, res) => {
   res.set("Access-Control-Allow-Origin", "*");
   res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.set("Access-Control-Allow-Headers", "Content-Type");
-  
+
   if (req.method === "OPTIONS") {
     return res.status(204).send("");
   }
@@ -1318,11 +1324,11 @@ exports.clickHandler = functions.https.onRequest(async (req, res) => {
         return res.status(404).send("⚠️ Campagne introuvable");
       }
       const campaign = campaignDoc.data();
-      
+
       // 🔥 التصحيح: استخدام رابط الـ hosting لطلب POST ثم التوجيه إلى targetUrl
       const hostingUrl = `https://scoutapk.web.app/click?c=${campaignId}&s=${shareId}&t=${t}`;
       const targetUrl = campaign.targetUrl || "https://www.mytek.tn";
-      
+
       const html = `
 <!doctype html>
 <html lang="ar">
@@ -1399,7 +1405,7 @@ exports.clickHandler = functions.https.onRequest(async (req, res) => {
         campaignTitle: campaign.title || "حملة غير معروفة"
       });
       console.log("🚫 Click rejeté:", fraudCheck.reason);
-      
+
       // حتى في حالة الاحتيال، التوجيه إلى targetUrl
       return res.redirect(302, campaign.targetUrl);
     }
@@ -1437,7 +1443,7 @@ exports.clickHandler = functions.https.onRequest(async (req, res) => {
     });
 
     console.log(`✅ Click enregistré pour: ${campaign.title} - Pays: ${country}`);
-    
+
     // 🔥 في الطلب الثاني (مع التوكن)، التوجيه إلى targetUrl
     return res.redirect(302, campaign.targetUrl);
 

@@ -43,6 +43,7 @@ class MarketplaceProvider with ChangeNotifier {
   }
 
   /// Charger les campagnes de la marketplace
+  // Dans MarketplaceProvider - méthode loadMarketplaceCampaigns()
   Future<void> loadMarketplaceCampaigns() async {
     if (_authProvider?.user == null) return;
 
@@ -51,16 +52,27 @@ class MarketplaceProvider with ChangeNotifier {
       _clearError();
 
       final user = _authProvider!.user!;
-      
-      // Charger les campagnes disponibles
-      final campaigns = await _campaignRepository.getAvailableCampaigns(
-        userId: user.id,
-        locationPreference: user.locationPreference,
+
+      // 🔥 CORRECTION : Utiliser la nouvelle méthode spécifique marketplace
+      final marketplaceCampaigns = await _campaignRepository
+          .getMarketplaceCampaigns(
+            userId: user.id,
+            locationPreference: user.locationPreference,
+          );
+
+      print(
+        '🛒 Campagnes marketplace chargées: ${marketplaceCampaigns.length}',
       );
 
       // Convertir en MarketplaceCampaignModel avec des données supplémentaires
-      _availableCampaigns = await _enhanceCampaignsForMarketplace(campaigns);
+      _availableCampaigns = await _enhanceCampaignsForMarketplace(
+        marketplaceCampaigns,
+      );
       _filteredCampaigns = _availableCampaigns;
+
+      print(
+        '🎉 Marketplace ready: ${_availableCampaigns.length} campagnes disponibles',
+      );
 
       notifyListeners();
     } catch (e) {
@@ -72,110 +84,164 @@ class MarketplaceProvider with ChangeNotifier {
 
   /// Améliorer les campagnes pour la marketplace
   Future<List<MarketplaceCampaignModel>> _enhanceCampaignsForMarketplace(
-    List<CampaignModel> campaigns,
-  ) async {
-    final enhancedCampaigns = <MarketplaceCampaignModel>[];
+  List<CampaignModel> campaigns,
+) async {
+  final enhancedCampaigns = <MarketplaceCampaignModel>[];
 
-    for (final campaign in campaigns) {
-      try {
-        // Récupérer les données supplémentaires depuis Firestore
-        final campaignDoc = await FirebaseFirestore.instance
-            .collection('campaigns')
-            .doc(campaign.id)
-            .get();
-
-        final data = campaignDoc.data() as Map<String, dynamic>? ?? {};
-
-        // Créer le modèle marketplace avec tous les champs requis
-        final marketplaceCampaign = MarketplaceCampaignModel(
-          id: campaign.id,
-          businessId: campaign.businessId,
-          title: campaign.title,
-          description: campaign.description,
-          targetUrl: campaign.targetUrl,
-          type: campaign.type,
-          status: campaign.status,
-          budget: campaign.budget,
-          spent: campaign.spent,
-          cpc: campaign.cpc,
-          targetClicks: campaign.targetClicks,
-          achievedClicks: campaign.achievedClicks,
-          uniqueClicks: campaign.uniqueClicks,
-          targetRegions: campaign.targetRegions,
-          targetLocation: campaign.targetLocation,
-          targetRadius: campaign.targetRadius,
-          createdAt: campaign.createdAt,
-          startDate: campaign.startDate,
-          endDate: campaign.endDate,
-          imageUrl: campaign.imageUrl,
-          imageExtension: campaign.imageExtension,
-          imagePath: campaign.imagePath,
-          isActive: campaign.isActive,
-          maxClicksPerUser: campaign.maxClicksPerUser,
-          conversionRate: campaign.conversionRate,
-          conversions: campaign.conversions,
-          advertiserId: campaign.advertiserId,
-          // Champs spécifiques marketplace
-          isFeatured: data['isFeatured'] == true,
-          rating: (data['rating'] ?? 0.0).toDouble(),
-          totalShares: (data['totalShares'] ?? 0).toInt(),
-          advertiserName: data['advertiserName']?.toString() ?? 'معلن',
-          advertiserLogo: data['advertiserLogo']?.toString(),
-          tags: data['tags'] != null ? List<String>.from(data['tags']) : [],
-          featuredUntil: data['featuredUntil'] != null
-              ? DateTime.parse(data['featuredUntil'])
-              : null,
-        );
-
-        enhancedCampaigns.add(marketplaceCampaign);
-      } catch (e) {
-        // Fallback: créer avec des valeurs par défaut
-        final marketplaceCampaign = MarketplaceCampaignModel(
-          id: campaign.id,
-          businessId: campaign.businessId,
-          title: campaign.title,
-          description: campaign.description,
-          targetUrl: campaign.targetUrl,
-          type: campaign.type,
-          status: campaign.status,
-          budget: campaign.budget,
-          spent: campaign.spent,
-          cpc: campaign.cpc,
-          targetClicks: campaign.targetClicks,
-          achievedClicks: campaign.achievedClicks,
-          uniqueClicks: campaign.uniqueClicks,
-          targetRegions: campaign.targetRegions,
-          targetLocation: campaign.targetLocation,
-          targetRadius: campaign.targetRadius,
-          createdAt: campaign.createdAt,
-          startDate: campaign.startDate,
-          endDate: campaign.endDate,
-          imageUrl: campaign.imageUrl,
-          imageExtension: campaign.imageExtension,
-          imagePath: campaign.imagePath,
-          isActive: campaign.isActive,
-          maxClicksPerUser: campaign.maxClicksPerUser,
-          conversionRate: campaign.conversionRate,
-          conversions: campaign.conversions,
-          advertiserId: campaign.advertiserId,
-          advertiserName: 'معلن',
-          tags: [campaign.typeText],
-        );
-        enhancedCampaigns.add(marketplaceCampaign);
-      }
+  // ✅ Étape 1 : filtrer uniquement les campagnes de type marketplace
+  final marketplaceOnly = campaigns.where((c) {
+    final type = c.campaignType?.toLowerCase() ?? '';
+    final isMarketplace = type == 'marketplace' || c.isMarketplaceCampaign == true;
+    if (!isMarketplace) {
+      print('❌ Campagne ignorée (type non marketplace): ${c.title} | type: $type');
     }
+    return isMarketplace;
+  }).toList();
 
-    return enhancedCampaigns;
+  print('✅ Nombre de campagnes marketplace avant amélioration: ${marketplaceOnly.length}');
+
+  // ✅ Étape 2 : améliorer uniquement ces campagnes
+  for (final campaign in marketplaceOnly) {
+    try {
+      // Charger les données Firestore associées
+      final campaignDoc = await FirebaseFirestore.instance
+          .collection('campaigns')
+          .doc(campaign.id)
+          .get();
+
+      final data = campaignDoc.data() as Map<String, dynamic>? ?? {};
+
+      final campaignType = (data['campaignType'] ?? campaign.campaignType ?? '').toString();
+      print('🛍️ Traitement campagne ${campaign.title} - type Firestore: $campaignType');
+
+      // Si Firestore contient encore un mauvais type, on le skip par sécurité
+      if (campaignType.toLowerCase() != 'marketplace') {
+        print('⚠️ Ignorée (Firestore type != marketplace): ${campaign.title}');
+        continue;
+      }
+
+      // Créer le modèle marketplace enrichi
+      final marketplaceCampaign = MarketplaceCampaignModel(
+        id: campaign.id,
+        businessId: campaign.businessId,
+        title: campaign.title,
+        description: campaign.description,
+        targetUrl: campaign.targetUrl,
+        type: campaign.type,
+        status: campaign.status,
+        budget: campaign.budget,
+        spent: campaign.spent,
+        cpc: campaign.cpc,
+        targetClicks: campaign.targetClicks,
+        achievedClicks: campaign.achievedClicks,
+        uniqueClicks: campaign.uniqueClicks,
+        targetRegions: campaign.targetRegions,
+        targetLocation: campaign.targetLocation,
+        targetRadius: campaign.targetRadius,
+        createdAt: campaign.createdAt,
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
+        imageUrl: campaign.imageUrl,
+        imageExtension: campaign.imageExtension,
+        imagePath: campaign.imagePath,
+        isActive: campaign.isActive,
+        maxClicksPerUser: campaign.maxClicksPerUser,
+        conversionRate: campaign.conversionRate,
+        conversions: campaign.conversions,
+        advertiserId: campaign.advertiserId,
+        // Champs spécifiques marketplace
+        isFeatured: data['isFeatured'] == true,
+        rating: (data['rating'] ?? 0.0).toDouble(),
+        totalShares: (data['totalShares'] ?? 0).toInt(),
+        advertiserName: data['advertiserName']?.toString() ?? 'معلن',
+        advertiserLogo: data['advertiserLogo']?.toString(),
+        tags: data['tags'] != null ? List<String>.from(data['tags']) : [],
+        featuredUntil: data['featuredUntil'] != null
+            ? DateTime.tryParse(data['featuredUntil'])
+            : null,
+      );
+
+      enhancedCampaigns.add(marketplaceCampaign);
+      print('✅ Campagne marketplace ajoutée: ${campaign.title}');
+    } catch (e) {
+      print('❌ Erreur amélioration campagne ${campaign.title}: $e');
+
+      // Fallback : création minimale si c’est bien une marketplace
+      final marketplaceCampaign = MarketplaceCampaignModel(
+        id: campaign.id,
+        businessId: campaign.businessId,
+        title: campaign.title,
+        description: campaign.description,
+        targetUrl: campaign.targetUrl,
+        type: campaign.type,
+        status: campaign.status,
+        budget: campaign.budget,
+        spent: campaign.spent,
+        cpc: campaign.cpc,
+        targetClicks: campaign.targetClicks,
+        achievedClicks: campaign.achievedClicks,
+        uniqueClicks: campaign.uniqueClicks,
+        targetRegions: campaign.targetRegions,
+        targetLocation: campaign.targetLocation,
+        targetRadius: campaign.targetRadius,
+        createdAt: campaign.createdAt,
+        startDate: campaign.startDate,
+        endDate: campaign.endDate,
+        imageUrl: campaign.imageUrl,
+        imageExtension: campaign.imageExtension,
+        imagePath: campaign.imagePath,
+        isActive: campaign.isActive,
+        maxClicksPerUser: campaign.maxClicksPerUser,
+        conversionRate: campaign.conversionRate,
+        conversions: campaign.conversions,
+        advertiserId: campaign.advertiserId,
+        advertiserName: 'معلن',
+        tags: [campaign.typeText],
+      );
+      enhancedCampaigns.add(marketplaceCampaign);
+    }
+  }
+
+  print('🧩 Total campagnes marketplace finales: ${enhancedCampaigns.length}');
+  return enhancedCampaigns;
+}
+
+
+  /// 🔥 NOUVELLE MÉTHODE : Charger uniquement les campagnes marketplace depuis Firestore
+  Future<List<CampaignModel>> _loadMarketplaceCampaignsFromFirestore() async {
+    try {
+      final snapshot = await FirebaseFirestore.instance
+          .collection('campaigns')
+          .where('campaignType', isEqualTo: 'marketplace')
+          .where('isActive', isEqualTo: true)
+          .where('status', isEqualTo: CampaignStatus.active.index)
+          .get();
+
+      final campaigns = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return CampaignModel.fromMap({...data, 'id': doc.id});
+      }).toList();
+
+      print('🔥 Campagnes marketplace depuis Firestore: ${campaigns.length}');
+      return campaigns;
+    } catch (e) {
+      print('❌ Erreur chargement marketplace depuis Firestore: $e');
+      return [];
+    }
   }
 
   /// Filtrer les campagnes
   void filterCampaigns(String filter) {
     switch (filter) {
       case 'featured':
-        _filteredCampaigns = _availableCampaigns.where((c) => c.isFeatured).toList();
+        _filteredCampaigns = _availableCampaigns
+            .where((c) => c.isFeatured)
+            .toList();
         break;
       case 'trending':
-        _filteredCampaigns = _availableCampaigns.where((c) => c.isTrending).toList();
+        _filteredCampaigns = _availableCampaigns
+            .where((c) => c.isTrending)
+            .toList();
         break;
       case 'new':
         _filteredCampaigns = _availableCampaigns.where((c) => c.isNew).toList();
@@ -195,10 +261,14 @@ class MarketplaceProvider with ChangeNotifier {
         _filteredCampaigns.sort((a, b) => b.rating.compareTo(a.rating));
         break;
       case 'shares':
-        _filteredCampaigns.sort((a, b) => b.totalShares.compareTo(a.totalShares));
+        _filteredCampaigns.sort(
+          (a, b) => b.totalShares.compareTo(a.totalShares),
+        );
         break;
       case 'earnings':
-        _filteredCampaigns.sort((a, b) => b.participantEarnings.compareTo(a.participantEarnings));
+        _filteredCampaigns.sort(
+          (a, b) => b.participantEarnings.compareTo(a.participantEarnings),
+        );
         break;
       case 'newest':
         _filteredCampaigns.sort((a, b) => b.createdAt.compareTo(a.createdAt));
@@ -223,15 +293,21 @@ class MarketplaceProvider with ChangeNotifier {
       _filteredCampaigns = _availableCampaigns.where((campaign) {
         return campaign.title.toLowerCase().contains(query.toLowerCase()) ||
             campaign.description.toLowerCase().contains(query.toLowerCase()) ||
-            campaign.advertiserName.toLowerCase().contains(query.toLowerCase()) ||
-            campaign.tags.any((tag) => tag.toLowerCase().contains(query.toLowerCase()));
+            campaign.advertiserName.toLowerCase().contains(
+              query.toLowerCase(),
+            ) ||
+            campaign.tags.any(
+              (tag) => tag.toLowerCase().contains(query.toLowerCase()),
+            );
       }).toList();
     }
     notifyListeners();
   }
 
   /// Partager une campagne de la marketplace
-  Future<void> shareMarketplaceCampaign(MarketplaceCampaignModel marketplaceCampaign) async {
+  Future<void> shareMarketplaceCampaign(
+    MarketplaceCampaignModel marketplaceCampaign,
+  ) async {
     if (_authProvider?.user == null) return;
 
     try {
@@ -310,7 +386,8 @@ class MarketplaceProvider with ChangeNotifier {
         final shared = await _shareService.shareCampaign(
           campaign: campaign,
           shareLink: shareLink,
-          customMessage: '''
+          customMessage:
+              '''
 🚀 حملة رائعة في سوق ReShare!
 
 ${marketplaceCampaign.title}
@@ -330,13 +407,16 @@ ${marketplaceCampaign.description}
 
         if (shared) {
           // Envoyer une notification de succès
-          await _cloudFunctions.callFunction('sendUserNotification', parameters: {
-            'userId': user.id,
-            'title': 'تمت المشاركة بنجاح! 🎯',
-            'body': 'حملة "${campaign.title}" جاهزة للمشاركة',
-            'type': 'campaign_shared',
-            'data': {'campaignId': campaign.id, 'shareId': shareId},
-          });
+          await _cloudFunctions.callFunction(
+            'sendUserNotification',
+            parameters: {
+              'userId': user.id,
+              'title': 'تمت المشاركة بنجاح! 🎯',
+              'body': 'حملة "${campaign.title}" جاهزة للمشاركة',
+              'type': 'campaign_shared',
+              'data': {'campaignId': campaign.id, 'shareId': shareId},
+            },
+          );
 
           // Incrémenter le compteur de partages dans Firestore
           await _incrementShareCount(campaign.id);
@@ -391,16 +471,18 @@ ${marketplaceCampaign.description}
           .collection('campaigns')
           .doc(campaignId)
           .update({
-        'totalShares': FieldValue.increment(1),
-        'lastSharedAt': FieldValue.serverTimestamp(),
-      });
+            'totalShares': FieldValue.increment(1),
+            'lastSharedAt': FieldValue.serverTimestamp(),
+          });
     } catch (e) {
       print('Error incrementing share count: $e');
     }
   }
 
   /// Obtenir les détails d'une campagne spécifique
-  Future<MarketplaceCampaignModel?> getCampaignDetails(String campaignId) async {
+  Future<MarketplaceCampaignModel?> getCampaignDetails(
+    String campaignId,
+  ) async {
     try {
       final campaignDoc = await FirebaseFirestore.instance
           .collection('campaigns')
@@ -410,6 +492,14 @@ ${marketplaceCampaign.description}
       if (!campaignDoc.exists) return null;
 
       final campaignData = campaignDoc.data() as Map<String, dynamic>;
+
+      // 🔥 CORRECTION : Vérifier que c'est une campagne marketplace
+      final campaignType = campaignData['campaignType'] ?? 'ads';
+      if (campaignType != 'marketplace') {
+        print('⚠️ Campagne non marketplace ignorée: $campaignId');
+        return null;
+      }
+
       final campaign = CampaignModel.fromMap(campaignData);
 
       // Convertir en MarketplaceCampaignModel
@@ -446,7 +536,9 @@ ${marketplaceCampaign.description}
         totalShares: (campaignData['totalShares'] ?? 0).toInt(),
         advertiserName: campaignData['advertiserName']?.toString() ?? 'معلن',
         advertiserLogo: campaignData['advertiserLogo']?.toString(),
-        tags: campaignData['tags'] != null ? List<String>.from(campaignData['tags']) : [],
+        tags: campaignData['tags'] != null
+            ? List<String>.from(campaignData['tags'])
+            : [],
         featuredUntil: campaignData['featuredUntil'] != null
             ? DateTime.parse(campaignData['featuredUntil'])
             : null,
@@ -467,20 +559,27 @@ ${marketplaceCampaign.description}
     final user = _authProvider!.user;
     if (user == null) return;
 
+    // 🔥 CORRECTION : Filtrer uniquement les campagnes marketplace
     FirebaseFirestore.instance
         .collection('campaigns')
+        .where('campaignType', isEqualTo: 'marketplace')
         .where('isActive', isEqualTo: true)
         .where('status', isEqualTo: CampaignStatus.active.index)
         .snapshots()
         .listen((snapshot) async {
           try {
             final campaigns = snapshot.docs
-                .map((doc) => CampaignModel.fromMap(doc.data() as Map<String, dynamic>))
+                .map(
+                  (doc) =>
+                      CampaignModel.fromMap(doc.data() as Map<String, dynamic>),
+                )
                 .toList();
 
-            _availableCampaigns = await _enhanceCampaignsForMarketplace(campaigns);
+            _availableCampaigns = await _enhanceCampaignsForMarketplace(
+              campaigns,
+            );
             _filteredCampaigns = _availableCampaigns;
-            
+
             notifyListeners();
           } catch (e) {
             print('Error in real-time updates: $e');

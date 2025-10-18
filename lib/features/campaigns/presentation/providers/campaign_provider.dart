@@ -17,6 +17,9 @@ class CampaignProvider with ChangeNotifier {
   final LocationService _locationService = LocationService();
   final ShareService _shareService = ShareService();
 
+  // 🔥 CORRECTION : Initialiser FirebaseFirestore correctement
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  
   AuthProvider? _authProvider;
 
   // État du provider
@@ -48,6 +51,45 @@ class CampaignProvider with ChangeNotifier {
       _loadUserCampaigns();
     }
   }
+/// 🔥 Charger uniquement les campagnes de type "ads"
+Future<void> loadAdsCampaigns() async {
+  if (_authProvider?.user == null) return;
+
+  try {
+    _setLoading(true);
+    _clearError();
+
+    // 🔹 Charger toutes les campagnes depuis Firestore
+    final snapshot = await _firestore.collection('campaigns').get();
+
+    _campaigns = snapshot.docs
+        .map((doc) {
+          final data = doc.data();
+          final type = (data['campaignType'] ?? data['type'] ?? '')
+              .toString()
+              .toLowerCase()
+              .trim();
+          final status = data['status'];
+          final isActive = data['isActive'] == true;
+
+          // ✅ Garder uniquement les campagnes ADS actives
+          if (type == 'ads' && isActive && (status == 2 || status == 'active')) {
+            return CampaignModel.fromMap({...data, 'id': doc.id});
+          }
+          return null;
+        })
+        .whereType<CampaignModel>() // Supprimer les nulls
+        .toList();
+
+    print('✅ Campagnes ADS trouvées: ${_campaigns.length}');
+    _applyFiltersAndSort();
+  } catch (e) {
+    _setError('فشل في تحميل حملات ADS: $e');
+  } finally {
+    _setLoading(false);
+    notifyListeners();
+  }
+}
 
   /// Charger les campagnes disponibles
   Future<void> loadCampaigns({CampaignType? type}) async {
@@ -81,7 +123,8 @@ class CampaignProvider with ChangeNotifier {
 
       if (user.userType == UserType.business ||
           user.userType == UserType.admin) {
-        final snapshot = await FirebaseFirestore.instance
+        // 🔥 CORRECTION : Utiliser _firestore au lieu de FirebaseFirestore.instance
+        final snapshot = await _firestore
             .collection('campaigns')
             .where('advertiserId', isEqualTo: user.id)
             .get();
@@ -100,6 +143,74 @@ class CampaignProvider with ChangeNotifier {
       }
     } catch (e) {
       print('فشل في تحميل حملات المستخدم: $e');
+    }
+  }
+
+  /// 🔥 CORRECTION : Méthode pour créer une campagne avec le modèle complet
+  Future<void> createCampaignWithModel(CampaignModel campaign) async {
+    try {
+      _setLoading(true);
+      _clearError();
+
+      final docRef = _firestore.collection('campaigns').doc(campaign.id);
+      
+      // Utiliser toCreateMap() qui inclut tous les champs requis
+      await docRef.set(campaign.toCreateMap());
+      
+      print('✅ Campagne créée avec succès: ${campaign.id}');
+      print('✅ Type de campagne: ${campaign.campaignType}');
+      print('✅ Frais marketplace: ${campaign.marketplaceFee}');
+      print('✅ Déduction totale: ${campaign.totalDeduction}');
+      print('✅ Budget: ${campaign.budget}');
+      print('✅ CPC: ${campaign.cpc}');
+      print('✅ Clicks cibles: ${campaign.targetClicks}');
+      
+      // Mettre à jour le solde du business
+      await _updateBusinessBalance({
+        'businessId': campaign.businessId,
+        'totalDeduction': campaign.totalDeduction,
+        'campaignType': campaign.campaignType,
+      });
+
+      // Ajouter à la liste locale
+      _userCampaigns.add(campaign);
+      _userCampaigns.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+    } catch (e) {
+      print('❌ Erreur création campagne: $e');
+      _setError('فشل في إنشاء الحملة: $e');
+      throw Exception('Erreur création campagne: $e');
+    } finally {
+      _setLoading(false);
+      notifyListeners();
+    }
+  }
+
+  /// 🔥 CORRECTION : Méthode pour mettre à jour le solde
+  Future<void> _updateBusinessBalance(Map<String, dynamic> data) async {
+    try {
+      final businessId = data['businessId'];
+      final totalDeduction = data['totalDeduction'] ?? 0.0;
+      final campaignType = data['campaignType'] ?? 'ads';
+      
+      if (businessId == null || businessId.isEmpty) {
+        print('⚠️ Business ID manquant pour la mise à jour du solde');
+        return;
+      }
+
+      // Mettre à jour le solde du business dans Firestore
+      await _firestore.collection('businesses').doc(businessId).update({
+        'balance': FieldValue.increment(-totalDeduction),
+        'lastCampaignDeduction': totalDeduction,
+        'lastCampaignType': campaignType,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+      
+      print('💰 Solde mis à jour: -$totalDeduction pour $businessId');
+      
+    } catch (e) {
+      print('❌ Erreur mise à jour solde: $e');
+      // Ne pas throw pour ne pas bloquer la création de campagne
     }
   }
 
@@ -405,11 +516,6 @@ class CampaignProvider with ChangeNotifier {
           .where((campaign) => campaign.type == _filter.type)
           .toList();
     }
-
-    // CORRECTION : Supprimer le filtrage par catégories puisque le modèle ne les a pas
-    // if (_filter.categories != null && _filter.categories!.isNotEmpty) {
-    //   // Filtrage par catégories - supprimé car non disponible dans le modèle
-    // }
 
     if (_filter.minEarnings != null) {
       filtered = filtered

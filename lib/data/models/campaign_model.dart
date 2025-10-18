@@ -28,7 +28,7 @@ class CampaignModel {
   final double conversionRate;
   final int conversions;
   final String? advertiserId; // 🔥 NOUVEAU CHAMP
-  
+
   // NOUVEAUX CHAMPS AJOUTÉS
   final String campaignType; // 'ads' ou 'marketplace'
   final double marketplaceFee; // Frais pour marketplace
@@ -41,7 +41,7 @@ class CampaignModel {
     required this.description,
     required this.targetUrl,
     required this.type,
-    this.status = CampaignStatus.pending,
+    this.status = CampaignStatus.active,
     required this.budget,
     this.spent = 0.0,
     required this.cpc,
@@ -62,7 +62,6 @@ class CampaignModel {
     this.conversionRate = 0.0,
     this.conversions = 0,
     this.advertiserId, // 🔥 NOUVEAU
-    
     // NOUVEAUX CHAMPS INITIALISÉS
     this.campaignType = 'ads', // Valeur par défaut
     this.marketplaceFee = 0.0, // Valeur par défaut
@@ -75,16 +74,17 @@ class CampaignModel {
   double get participantEarnings => cpc * 0.6;
   double get totalCost => cpc * targetClicks;
   bool get isBudgetSufficient => totalCost <= budget;
-  double get completionRate => targetClicks > 0 ? (achievedClicks / targetClicks) * 100 : 0.0;
+  double get completionRate =>
+      targetClicks > 0 ? (achievedClicks / targetClicks) * 100 : 0.0;
   double get budgetUtilization => budget > 0 ? (spent / budget) * 100 : 0.0;
-  
+
   // NOUVEAUX GETTERS POUR LE TYPE DE CAMPAGNE
   bool get isMarketplaceCampaign => campaignType == 'marketplace';
   bool get isAdsCampaign => campaignType == 'ads';
-  
+
   // 🔥 NOUVEAU : Vérifier si la campagne a une image
   bool get hasImage => imageUrl != null && imageUrl!.isNotEmpty;
-  
+
   // 🔥 NOUVEAU : Obtenir le type MIME de l'image
   String? get imageMimeType {
     if (imageExtension == null) return null;
@@ -118,7 +118,7 @@ class CampaignModel {
       targetClicks: _safeInt(map['targetClicks']),
       achievedClicks: _safeInt(map['achievedClicks']),
       uniqueClicks: _safeInt(map['uniqueClicks']),
-      targetRegions: map['targetRegions'] != null 
+      targetRegions: map['targetRegions'] != null
           ? List<String>.from(map['targetRegions'])
           : null,
       targetLocation: map['targetLocation'] != null
@@ -136,7 +136,6 @@ class CampaignModel {
       conversionRate: _safeDouble(map['conversionRate']),
       conversions: _safeInt(map['conversions']),
       advertiserId: map['advertiserId']?.toString(), // 🔥 NOUVEAU
-      
       // NOUVEAUX CHAMPS AVEC VALEURS PAR DÉFAUT SI NULL
       campaignType: map['campaignType']?.toString() ?? 'ads',
       marketplaceFee: _safeDouble(map['marketplaceFee']),
@@ -147,11 +146,11 @@ class CampaignModel {
   // 🔥 MÉTHODE : Parser CampaignType de manière sécurisée
   static CampaignType _parseCampaignType(dynamic type) {
     if (type == null) return CampaignType.open;
-    
+
     if (type is int) {
       return CampaignType.values[type];
     }
-    
+
     if (type is String) {
       switch (type.toLowerCase()) {
         case 'regional':
@@ -166,18 +165,18 @@ class CampaignModel {
           return CampaignType.open;
       }
     }
-    
+
     return CampaignType.open;
   }
 
   // 🔥 MÉTHODE : Parser CampaignStatus de manière sécurisée
   static CampaignStatus _parseCampaignStatus(dynamic status) {
     if (status == null) return CampaignStatus.pending;
-    
+
     if (status is int) {
       return CampaignStatus.values[status];
     }
-    
+
     if (status is String) {
       switch (status.toLowerCase()) {
         case 'approved':
@@ -201,7 +200,7 @@ class CampaignModel {
           return CampaignStatus.pending;
       }
     }
-    
+
     return CampaignStatus.pending;
   }
 
@@ -268,7 +267,6 @@ class CampaignModel {
       'conversionRate': conversionRate,
       'conversions': conversions,
       'advertiserId': advertiserId, // 🔥 NOUVEAU
-      
       // NOUVEAUX CHAMPS AJOUTÉS
       'campaignType': campaignType,
       'marketplaceFee': marketplaceFee,
@@ -291,7 +289,7 @@ class CampaignModel {
       'imagePath': imagePath,
       'advertiserId': advertiserId ?? businessId,
       'createdAt': createdAt.toIso8601String(),
-      'status': CampaignStatus.pending.index,
+      'status': CampaignStatus.active.index,
       'isActive': true,
       'spent': 0.0,
       'achievedClicks': 0,
@@ -299,7 +297,7 @@ class CampaignModel {
       'maxClicksPerUser': maxClicksPerUser,
       'conversionRate': 0.0,
       'conversions': 0,
-      
+
       // NOUVEAUX CHAMPS AJOUTÉS
       'campaignType': campaignType,
       'marketplaceFee': marketplaceFee,
@@ -309,16 +307,16 @@ class CampaignModel {
 
   /// 🔥 NOUVELLE MÉTHODE : Vérifier si la campagne peut être modifiée
   bool get canBeEdited {
-    return status == CampaignStatus.pending || 
-           status == CampaignStatus.rejected;
+    return status == CampaignStatus.pending ||
+        status == CampaignStatus.rejected;
   }
 
   /// 🔥 NOUVELLE MÉTHODE : Vérifier si la campagne peut être activée
   bool get canBeActivated {
-    return status == CampaignStatus.approved && 
-           isActive == false &&
-           remainingBudget > 0 &&
-           remainingClicks > 0;
+    return status == CampaignStatus.approved &&
+        isActive == false &&
+        remainingBudget > 0 &&
+        remainingClicks > 0;
   }
 
   /// 🔥 NOUVELLE MÉTHODE : Obtenir le statut sous forme de texte
@@ -420,7 +418,6 @@ class CampaignModel {
     double? conversionRate,
     int? conversions,
     String? advertiserId, // 🔥 NOUVEAU
-    
     // NOUVEAUX CHAMPS AJOUTÉS
     String? campaignType,
     double? marketplaceFee,
@@ -454,7 +451,6 @@ class CampaignModel {
       conversionRate: conversionRate ?? this.conversionRate,
       conversions: conversions ?? this.conversions,
       advertiserId: advertiserId ?? this.advertiserId, // 🔥 NOUVEAU
-      
       // NOUVEAUX CHAMPS AJOUTÉS
       campaignType: campaignType ?? this.campaignType,
       marketplaceFee: marketplaceFee ?? this.marketplaceFee,
@@ -499,10 +495,7 @@ class CampaignModel {
 
   /// 🔥 NOUVELLE MÉTHODE : Pour mettre en pause la campagne
   CampaignModel pause() {
-    return copyWith(
-      status: CampaignStatus.paused,
-      isActive: false,
-    );
+    return copyWith(status: CampaignStatus.paused, isActive: false);
   }
 
   /// 🔥 NOUVELLE MÉTHODE : Pour compléter la campagne
@@ -516,17 +509,12 @@ class CampaignModel {
 
   /// 🔥 NOUVELLE MÉTHODE : Pour rejeter la campagne
   CampaignModel reject() {
-    return copyWith(
-      status: CampaignStatus.rejected,
-      isActive: false,
-    );
+    return copyWith(status: CampaignStatus.rejected, isActive: false);
   }
 
   /// 🔥 NOUVELLE MÉTHODE : Pour approuver la campagne
   CampaignModel approve() {
-    return copyWith(
-      status: CampaignStatus.approved,
-    );
+    return copyWith(status: CampaignStatus.approved);
   }
 
   @override
@@ -545,6 +533,7 @@ class CampaignModel {
 }
 
 enum CampaignType { open, regional, precise }
+
 enum CampaignStatus { pending, approved, active, paused, completed, rejected }
 
 class Location {
@@ -571,18 +560,10 @@ class Location {
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'latitude': latitude,
-      'longitude': longitude,
-      'address': address,
-    };
+    return {'latitude': latitude, 'longitude': longitude, 'address': address};
   }
 
-  Location copyWith({
-    double? latitude,
-    double? longitude,
-    String? address,
-  }) {
+  Location copyWith({double? latitude, double? longitude, String? address}) {
     return Location(
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,

@@ -3,8 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:reshare/data/models/campaign_model.dart';
 
 import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_strings.dart';
-import '../../../../presentation/widgets/campaign/campaign_card.dart';
 import '../../../../presentation/widgets/campaign/campaign_list.dart';
 import '../providers/campaign_provider.dart';
 
@@ -24,9 +22,8 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<CampaignProvider>(context, listen: false);
-      provider.loadCampaigns();
+      provider.loadAdsCampaigns(); // ✅ Charger uniquement les ADS
     });
-    
   }
 
   @override
@@ -35,20 +32,19 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
       builder: (context, campaignProvider, child) {
         return Column(
           children: [
-            // Search and Filter Section
             _buildSearchAndFilterSection(campaignProvider),
-            
-            // Campaigns List
             Expanded(
               child: RefreshIndicator(
                 onRefresh: () async {
-                  await campaignProvider.refreshCampaigns();
+                  await campaignProvider.loadAdsCampaigns();
                 },
                 child: campaignProvider.isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : campaignProvider.campaigns.isEmpty
                         ? _buildEmptyState()
-                        : CampaignList(campaigns: campaignProvider.campaigns),
+                        : CampaignList(
+                            campaigns: campaignProvider.campaigns,
+                          ),
               ),
             ),
           ],
@@ -63,7 +59,6 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
       color: Colors.white,
       child: Column(
         children: [
-          // Search Bar
           TextField(
             controller: _searchController,
             decoration: InputDecoration(
@@ -74,7 +69,7 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
                       icon: const Icon(Icons.clear_rounded),
                       onPressed: () {
                         _searchController.clear();
-                        campaignProvider.loadCampaigns();
+                        campaignProvider.loadAdsCampaigns();
                       },
                     )
                   : null,
@@ -86,83 +81,14 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
             ),
             onChanged: (value) {
               if (value.isEmpty) {
-                campaignProvider.loadCampaigns();
+                campaignProvider.loadAdsCampaigns();
               } else {
                 campaignProvider.searchCampaigns(value);
               }
             },
           ),
           const SizedBox(height: 16),
-
-          // Filter Chips
-          SizedBox(
-            height: 50,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                _buildFilterChip(
-                  label: 'الكل',
-                  selected: _selectedType == null,
-                  onSelected: (_) {
-                    setState(() => _selectedType = null);
-                    campaignProvider.loadCampaigns();
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: 'مفتوحة',
-                  selected: _selectedType == CampaignType.open,
-                  onSelected: (_) {
-                    setState(() => _selectedType = CampaignType.open);
-                    campaignProvider.loadCampaigns(type: CampaignType.open);
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: 'إقليمية',
-                  selected: _selectedType == CampaignType.regional,
-                  onSelected: (_) {
-                    setState(() => _selectedType = CampaignType.regional);
-                    campaignProvider.loadCampaigns(type: CampaignType.regional);
-                  },
-                ),
-                const SizedBox(width: 8),
-                _buildFilterChip(
-                  label: 'دقيقة',
-                  selected: _selectedType == CampaignType.precise,
-                  onSelected: (_) {
-                    setState(() => _selectedType = CampaignType.precise);
-                    campaignProvider.loadCampaigns(type: CampaignType.precise);
-                  },
-                ),
-              ],
-            ),
-          ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildFilterChip({
-    required String label,
-    required bool selected,
-    required Function(bool) onSelected,
-  }) {
-    return FilterChip(
-      label: Text(
-        label,
-        style: TextStyle(
-          color: selected ? Colors.white : AppColors.textPrimary,
-          fontFamily: 'Tajawal',
-        ),
-      ),
-      selected: selected,
-      onSelected: onSelected,
-      backgroundColor: Colors.white,
-      selectedColor: AppColors.primary,
-      checkmarkColor: Colors.white,
-      side: BorderSide(
-        color: selected ? AppColors.primary : AppColors.outline,
       ),
     );
   }
@@ -172,14 +98,11 @@ class _CampaignsScreenState extends State<CampaignsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.campaign_rounded,
-            size: 80,
-            color: AppColors.textSecondary.withOpacity(0.5),
-          ),
+          Icon(Icons.campaign_rounded,
+              size: 80, color: AppColors.textSecondary.withOpacity(0.5)),
           const SizedBox(height: 20),
           Text(
-            'لا توجد حملات متاحة حالياً',
+            'لا توجد حملات إعلانية حالياً',
             style: TextStyle(
               fontSize: 18,
               color: AppColors.textSecondary,
