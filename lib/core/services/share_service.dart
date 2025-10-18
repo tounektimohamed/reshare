@@ -10,16 +10,19 @@ class ShareService {
   factory ShareService() => _instance;
   ShareService._internal();
 
-  // 🔥 NOUVEAU - Constante pour le domaine uniformisé
+  // 🔥 CONSTANTE POUR LE DOMAINE UNIFORMISÉ
   static const String APP_BASE_URL = "https://scoutapk.web.app";
 
-  /// مشاركة حملة إعلانية
+  /// مشاركة حملة إعلانية - VERSION COMPATIBLE AVEC VOTRE PROVIDER
   Future<bool> shareCampaign({
     required CampaignModel campaign,
-    required String shareLink,
+    required String shareLink, // 🔥 Garder le même paramètre
     String? customMessage,
   }) async {
     try {
+      print('🔄 Partage de campagne: ${campaign.title}');
+      print('🔗 Lien fourni: $shareLink');
+
       final message = customMessage ?? _generateCampaignShareMessage(campaign, shareLink);
       
       await Share.share(
@@ -27,14 +30,36 @@ class ShareService {
         subject: 'شارك واربح مع ReShare 🚀',
       );
 
+      print('✅ Campagne partagée avec succès');
       return true;
     } catch (e) {
-      print('فشل في مشاركة الحملة: $e');
+      print('❌ فشل في مشاركة الحملة: $e');
       return false;
     }
   }
 
-  /// إنشاء رسالة مشاركة الحملة
+  /// مشاركة رابط الإحالة
+  Future<bool> shareReferralLink({
+    required String referralLink,
+    required String referralCode,
+    String? customMessage,
+  }) async {
+    try {
+      final message = customMessage ?? _generateReferralShareMessage(referralLink, referralCode);
+
+      await Share.share(
+        message,
+        subject: 'انضم إلى ReShare واربح معي! 🎁',
+      );
+
+      return true;
+    } catch (e) {
+      print('فشل في مشاركة رابط الإحالة: $e');
+      return false;
+    }
+  }
+
+  /// Create campaign share message
   String _generateCampaignShareMessage(CampaignModel campaign, String shareLink) {
     return '''
 🚀 حملة جديدة على ReShare!
@@ -54,30 +79,7 @@ ${campaign.description}
 ''';
   }
 
-  /// مشاركة رابط الإحالة
-  Future<bool> shareReferralLink({
-    required String referralLink,
-    required String referralCode,
-    String? customMessage,
-  }) async {
-    try {
-      // 🔥 NOUVEAU - Utiliser le nouveau lien de parrainage
-      final updatedReferralLink = '$APP_BASE_URL/register?ref=$referralCode';
-      final message = customMessage ?? _generateReferralShareMessage(updatedReferralLink, referralCode);
-
-      await Share.share(
-        message,
-        subject: 'انضم إلى ReShare واربح معي! 🎁',
-      );
-
-      return true;
-    } catch (e) {
-      print('فشل في مشاركة رابط الإحالة: $e');
-      return false;
-    }
-  }
-
-  /// إنشاء رسالة مشاركة الإحالة
+  /// Create referral share message
   String _generateReferralShareMessage(String referralLink, String referralCode) {
     return '''
 🎁 انضم إلى ReShare واربح معي!
@@ -109,7 +111,6 @@ ${_shortenUrl(referralLink)}
     String? customMessage,
   }) async {
     try {
-      // 🔥 NOUVEAU - Utiliser le nouveau lien de parrainage
       final referralLink = '$APP_BASE_URL/register?ref=$referralCode';
       final message = customMessage ?? _generateInvitationMessage(referralCode, referralLink);
 
@@ -139,7 +140,7 @@ ${_shortenUrl(referralLink)}
     }
   }
 
-  /// إنشاء رسالة الدعوة
+  /// Create invitation message
   String _generateInvitationMessage(String referralCode, String referralLink) {
     return '''
 مرحباً! 👋
@@ -165,10 +166,10 @@ $referralLink
 ''';
   }
 
-  /// المشاركة عبر واتساب
+  // ============ MÉTHODES DE PARTAGE ============
+
   Future<bool> _shareViaWhatsApp(String phoneNumber, String message) async {
     try {
-      // تنظيف رقم الهاتف
       final cleanNumber = phoneNumber.replaceAll(RegExp(r'[^0-9+]'), '');
       final url = 'https://wa.me/$cleanNumber?text=${Uri.encodeComponent(message)}';
       
@@ -183,7 +184,6 @@ $referralLink
     }
   }
 
-  /// المشاركة عبر الرسائل النصية
   Future<bool> _shareViaSMS(String phoneNumber, String message) async {
     try {
       final url = 'sms:$phoneNumber?body=${Uri.encodeComponent(message)}';
@@ -199,7 +199,6 @@ $referralLink
     }
   }
 
-  /// المشاركة عبر البريد الإلكتروني
   Future<bool> _shareViaEmail(String email, String message) async {
     try {
       final url = 'mailto:$email?subject=دعوة للانضمام إلى ReShare&body=${Uri.encodeComponent(message)}';
@@ -215,7 +214,6 @@ $referralLink
     }
   }
 
-  /// المشاركة عبر تليجرام
   Future<bool> _shareViaTelegram(String username, String message) async {
     try {
       final url = 'https://t.me/share/url?url=${Uri.encodeComponent('$APP_BASE_URL/register')}&text=${Uri.encodeComponent(message)}';
@@ -231,7 +229,6 @@ $referralLink
     }
   }
 
-  /// المشاركة عبر فيسبوك
   Future<bool> _shareViaFacebook(String message) async {
     try {
       final url = 'https://www.facebook.com/sharer/sharer.php?u=${Uri.encodeComponent('$APP_BASE_URL/register')}&quote=${Uri.encodeComponent(message)}';
@@ -247,7 +244,6 @@ $referralLink
     }
   }
 
-  /// المشاركة عبر تويتر
   Future<bool> _shareViaTwitter(String message) async {
     try {
       final url = 'https://twitter.com/intent/tweet?text=${Uri.encodeComponent(message)}';
@@ -263,11 +259,8 @@ $referralLink
     }
   }
 
-  /// المشاركة عبر إنستجرام
   Future<bool> _shareViaInstagram(String message) async {
     try {
-      // Note: Instagram doesn't support direct sharing via URL scheme for text
-      // This will open the app and user can manually share
       final url = 'instagram://share?text=${Uri.encodeComponent(message)}';
       
       if (await canLaunchUrl(Uri.parse(url))) {
@@ -275,7 +268,6 @@ $referralLink
         return true;
       }
       
-      // Fallback to Instagram web
       final webUrl = 'https://www.instagram.com/';
       if (await canLaunchUrl(Uri.parse(webUrl))) {
         await launchUrl(Uri.parse(webUrl));
@@ -289,7 +281,6 @@ $referralLink
     }
   }
 
-  /// نسخ إلى الحافظة
   Future<bool> _copyToClipboard(String text) async {
     try {
       await Clipboard.setData(ClipboardData(text: text));
@@ -300,257 +291,12 @@ $referralLink
     }
   }
 
-  /// مشاركة إنجازات الأرباح
-  Future<bool> shareEarningsAchievement({
-    required double earnings,
-    required int totalClicks,
-    String? customMessage,
-  }) async {
-    try {
-      final message = customMessage ?? _generateEarningsAchievementMessage(earnings, totalClicks);
+  // ============ MÉTHODES UTILITAIRES ============
 
-      await Share.share(
-        message,
-        subject: 'إنجاز رائع على ReShare! 🎉',
-      );
-
-      return true;
-    } catch (e) {
-      print('فشل في مشاركة الإنجاز: $e');
-      return false;
-    }
-  }
-
-  /// إنشاء رسالة إنجاز الأرباح
-  String _generateEarningsAchievementMessage(double earnings, int totalClicks) {
-    return '''
-🎉 إنجاز رائع على ReShare!
-
-لقد حققت ${earnings.toStringAsFixed(3)} دينار من خلال $totalClicks نقرة ناجحة! 💰
-
-ReShare تطبيق رائع لتحقيق دخل إضافي من خلال مشاركة الحملات الإعلانية.
-
-✨ جربها بنفسك:
-$APP_BASE_URL
-
-✅ أرباح حقيقية
-✅ سحب أموال سهل
-✅ حملات متنوعة
-
-#ReShare #أرباح_إضافية #إنجاز
-''';
-  }
-
-  /// مشاركة إحصائيات الأداء
-  Future<bool> sharePerformanceStats({
-    required int totalClicks,
-    required double totalEarnings,
-    required int referralCount,
-    String? customMessage,
-  }) async {
-    try {
-      final message = customMessage ?? _generatePerformanceStatsMessage(
-        totalClicks, 
-        totalEarnings, 
-        referralCount
-      );
-
-      await Share.share(
-        message,
-        subject: 'إحصائيات أدائي على ReShare 📊',
-      );
-
-      return true;
-    } catch (e) {
-      print('فشل في مشاركة الإحصائيات: $e');
-      return false;
-    }
-  }
-
-  /// إنشاء رسالة إحصائيات الأداء
-  String _generatePerformanceStatsMessage(int totalClicks, double totalEarnings, int referralCount) {
-    return '''
-📊 إحصائيات أدائي على ReShare:
-
-✅ $totalClicks نقرة ناجحة
-💰 ${totalEarnings.toStringAsFixed(3)} دينار أرباح
-👥 $referralCount صديق مدعو
-🎯 متوسط الربح: ${(totalEarnings / totalClicks).toStringAsFixed(3)} دينار/نقرة
-
-ReShare منصة رائعة لتحقيق دخل إضافي من خلال مشاركة الحملات الإعلانية.
-
-🔗 انضم الآن وابدأ رحلتك:
-$APP_BASE_URL
-
-#ReShare #إحصائيات_الأداء #ربح_من_الإنترنت
-''';
-  }
-
-  /// مشاركة مكافأة الإحالة
-  Future<bool> shareReferralReward({
-    required String friendName,
-    required double rewardAmount,
-    String? customMessage,
-  }) async {
-    try {
-      final message = customMessage ?? _generateReferralRewardMessage(friendName, rewardAmount);
-
-      await Share.share(
-        message,
-        subject: 'مكافأة إحالة جديدة! 🎁',
-      );
-
-      return true;
-    } catch (e) {
-      print('فشل في مشاركة مكافأة الإحالة: $e');
-      return false;
-    }
-  }
-
-  /// إنشاء رسالة مكافأة الإحالة
-  String _generateReferralRewardMessage(String friendName, double rewardAmount) {
-    return '''
-🎁 مكافأة إحالة جديدة!
-
-لقد أكمل صديقي $friendName النقرات المطلوبة، وتم إضافة $rewardAmount دينار إلى رصيدي! 🎉
-
-ReShare تطبيق رائع لا يمكنك من تحقيق أرباح من مشاركتك فقط، بل أيضاً من خلال إحالة الأصدقاء!
-
-✨ المميزات:
-• أرباح من مشاركتك
-• مكافآت من إحالة الأصدقاء
-• سحب أموال بسهولة
-• حملات متنوعة يومياً
-
-🔗 انضم الآن:
-$APP_BASE_URL
-
-#ReShare #مكافأة_الإحالة #ربح_مع_الأصدقاء
-''';
-  }
-
-  /// مشاركة حملة محددة مع تصميم مخصص
-  Future<bool> shareCustomCampaign({
-    required CampaignModel campaign,
-    required String shareLink,
-    required String templateType,
-    Map<String, dynamic>? customData,
-  }) async {
-    try {
-      String message;
-      
-      switch (templateType) {
-        case 'urgent':
-          message = _generateUrgentCampaignMessage(campaign, shareLink);
-          break;
-        case 'limited':
-          message = _generateLimitedCampaignMessage(campaign, shareLink);
-          break;
-        case 'high_reward':
-          message = _generateHighRewardCampaignMessage(campaign, shareLink);
-          break;
-        case 'simple':
-          message = _generateSimpleCampaignMessage(campaign, shareLink);
-          break;
-        default:
-          message = _generateCampaignShareMessage(campaign, shareLink);
-      }
-
-      // إضافة البيانات المخصصة إذا وجدت
-      if (customData != null) {
-        message += '\n\n${customData['additionalText'] ?? ''}';
-      }
-
-      await Share.share(message);
-      return true;
-    } catch (e) {
-      print('فشل في المشاركة المخصصة: $e');
-      return false;
-    }
-  }
-
-  /// رسالة حملة عاجلة
-  String _generateUrgentCampaignMessage(CampaignModel campaign, String shareLink) {
-    return '''
-🚨 حملة عاجلة على ReShare!
-
-${campaign.title}
-
-⏰ محدودة الوقت - إنتهز الفرصة الآن!
-
-${campaign.description}
-
-🎯 أرباح: ${campaign.participantEarnings.toStringAsFixed(3)} دينار/نقرة
-🔗 ${_shortenUrl(shareLink)}
-
-#ReShare #عاجل #فرصة
-''';
-  }
-
-  /// رسالة حملة محدودة
-  String _generateLimitedCampaignMessage(CampaignModel campaign, String shareLink) {
-    return '''
-🎯 حملة محدودة على ReShare!
-
-${campaign.title}
-
-${campaign.description}
-
-💰 ${campaign.remainingClicks} نقرة متبقية فقط!
-🎁 أرباح: ${campaign.participantEarnings.toStringAsFixed(3)} دينار/نقرة
-
-🔗 شارك الآن:
-${_shortenUrl(shareLink)}
-
-#ReShare #محدود #إنتهاز_الفرصة
-''';
-  }
-
-  /// رسالة حملة بمكافآت عالية
-  String _generateHighRewardCampaignMessage(CampaignModel campaign, String shareLink) {
-    return '''
-💰 حملة بمكافآت عالية على ReShare!
-
-${campaign.title}
-
-${campaign.description}
-
-🎁 أرباح مميزة: ${campaign.participantEarnings.toStringAsFixed(3)} دينار/نقرة!
-⭐ فرصة لا تعوض!
-
-🔗 ${_shortenUrl(shareLink)}
-
-#ReShare #مكافآت_عالية #فرصة_ذهبية
-''';
-  }
-
-  /// رسالة حملة مبسطة
-  String _generateSimpleCampaignMessage(CampaignModel campaign, String shareLink) {
-    return '''
-📱 ReShare
-
-${campaign.title}
-
-${campaign.description}
-
-🎯 اربح ${campaign.participantEarnings.toStringAsFixed(3)} دينار لكل نقرة
-
-${_shortenUrl(shareLink)}
-
-#ReShare
-''';
-  }
-
-  // ============ METHODS HELPERS ============
-
-  /// تقصير الرابط (يمكن استبداله بخدمة تقصير روابط حقيقية)
   String _shortenUrl(String url) {
-    // في الإصدار الحالي نعود الرابط كما هو
-    // يمكن إضافة خدمة تقصير رواق مثل bit.ly أو rebrand.ly
     return url;
   }
 
-  /// الحصول على نص نوع الحملة
   String _getCampaignTypeText(CampaignType type) {
     switch (type) {
       case CampaignType.open:
@@ -562,7 +308,6 @@ ${_shortenUrl(shareLink)}
     }
   }
 
-  /// الحصول على الوقت المتبقي
   String _getTimeRemaining(DateTime? endDate) {
     if (endDate == null) return 'مفتوحة';
     
@@ -578,79 +323,86 @@ ${_shortenUrl(shareLink)}
     }
   }
 
-  /// إنشاء هاشتاقات من عنوان الحملة
   String _generateHashtags(String title) {
     final words = title.split(' ');
     final hashtags = words.take(3).map((word) => word.replaceAll(RegExp(r'[^\w]'), ''));
     return hashtags.join('_');
   }
 
-  /// فتح رابط خارجي
-  Future<bool> launchExternalUrl(String url) async {
+  // ============ AUTRES MÉTHODES DE PARTAGE ============
+
+  Future<bool> shareEarningsAchievement({
+    required double earnings,
+    required int totalClicks,
+    String? customMessage,
+  }) async {
     try {
-      if (await canLaunchUrl(Uri.parse(url))) {
-        await launchUrl(Uri.parse(url));
-        return true;
-      }
-      return false;
+      final message = customMessage ?? _generateEarningsAchievementMessage(earnings, totalClicks);
+      await Share.share(message, subject: 'إنجاز رائع على ReShare! 🎉');
+      return true;
     } catch (e) {
-      print('فشل في فتح الرابط: $e');
+      print('فشل في مشاركة الإنجاز: $e');
       return false;
     }
   }
 
-  /// مشاركة تطبيق ReShare
+  String _generateEarningsAchievementMessage(double earnings, int totalClicks) {
+    return '''
+🎉 إنجاز رائع على ReShare!
+لقد حققت ${earnings.toStringAsFixed(3)} دينار من خلال $totalClicks نقرة ناجحة! 💰
+ReShare تطبيق رائع لتحقيق دخل إضافي من خلال مشاركة الحملات الإعلانية.
+✨ جربها بنفسك: $APP_BASE_URL
+✅ أرباح حقيقية | ✅ سحب أموال سهل | ✅ حملات متنوعة
+#ReShare #أرباح_إضافية #إنجاز
+''';
+  }
+
+  Future<bool> sharePerformanceStats({
+    required int totalClicks,
+    required double totalEarnings,
+    required int referralCount,
+    String? customMessage,
+  }) async {
+    try {
+      final message = customMessage ?? _generatePerformanceStatsMessage(totalClicks, totalEarnings, referralCount);
+      await Share.share(message, subject: 'إحصائيات أدائي على ReShare 📊');
+      return true;
+    } catch (e) {
+      print('فشل في مشاركة الإحصائيات: $e');
+      return false;
+    }
+  }
+
+  String _generatePerformanceStatsMessage(int totalClicks, double totalEarnings, int referralCount) {
+    return '''
+📊 إحصائيات أدائي على ReShare:
+✅ $totalClicks نقرة ناجحة
+💰 ${totalEarnings.toStringAsFixed(3)} دينار أرباح
+👥 $referralCount صديق مدعو
+🎯 متوسط الربح: ${(totalEarnings / totalClicks).toStringAsFixed(3)} دينار/نقرة
+ReShare منصة رائعة لتحقيق دخل إضافي من خلال مشاركة الحملات الإعلانية.
+🔗 انضم الآن وابدأ رحلتك: $APP_BASE_URL
+#ReShare #إحصائيات_الأداء #ربح_من_الإنترنت
+''';
+  }
+
   Future<bool> shareApp() async {
     try {
-      final message = '''
+      const message = '''
 📱 حمل تطبيق ReShare الآن!
-
 تطبيق رائع لتحقيق دخل إضافي من خلال مشاركة الحملات الإعلانية.
-
 ✨ المميزات:
 ✅ أرباح حقيقية من المشاركة
 ✅ حملات متنوعة يومياً
 ✅ سحب أموال بسهولة
 ✅ نظام إحالة بمكافآت
-
-🔗 حمل التطبيق الآن:
-$APP_BASE_URL
-
+🔗 حمل التطبيق الآن: $APP_BASE_URL
 #ReShare #دخل_إضافي #تطبيق_ربح
 ''';
-
       await Share.share(message);
       return true;
     } catch (e) {
       print('فشل في مشاركة التطبيق: $e');
-      return false;
-    }
-  }
-
-  /// مشاركة نجاح السحب
-  Future<bool> shareWithdrawalSuccess({
-    required double amount,
-    required String method,
-    String? customMessage,
-  }) async {
-    try {
-      final message = customMessage ?? '''
-✅ تم سحب ${amount.toStringAsFixed(3)} دينار بنجاح!
-
-طريقة السحب: $method
-
-ReShare تطبيق موثوق لتحقيق دخل إضافي وسحب الأموال بسهولة.
-
-🔗 جرب التطبيق:
-$APP_BASE_URL
-
-#ReShare #سحب_ناجح #ربح_حقيقي
-''';
-
-      await Share.share(message);
-      return true;
-    } catch (e) {
-      print('فشل في مشاركة نجاح السحب: $e');
       return false;
     }
   }
