@@ -38,7 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       final provider = Provider.of<DashboardProvider>(context, listen: false);
       try {
-        await provider.loadDashboardData();
+        await provider.adsCompHome();
       } catch (e) {
         print('❌ Error in initial load: $e');
       }
@@ -1158,7 +1158,7 @@ Widget _buildQuickActions() {
           TextButton(
             onPressed: onSeeAll,
             child: Text(
-              'عرض الكل',
+              '🛍️ عرض السوق',
               style: TextStyle(
                 color: AppColors.primary, 
                 fontFamily: 'Tajawal'

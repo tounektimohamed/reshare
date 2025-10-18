@@ -48,6 +48,50 @@ class DashboardProvider with ChangeNotifier {
       _startRealTimeUpdates();
     }
   }
+  /// 🔥 Nouvelle fonction : charger uniquement les campagnes de type "ads" depuis Firestore
+   /// ✅ Charger uniquement les campagnes de type "ads" depuis Firestore
+  Future<void> adsCompHome() async {
+    try {
+      _setLoading(true);
+      _clearError();
+
+      print('🚀 [adsCompHome] Chargement des campagnes ADS depuis Firestore...');
+
+      // 🔹 Récupère uniquement les campagnes actives avec le bon type
+      final snapshot = await FirebaseFirestore.instance
+          .collection('campaigns')
+          .where('campaignType', isEqualTo: 'ads')
+          .where('isActive', isEqualTo: true)
+          .where('status', isEqualTo: 2)
+          .get();
+
+      // 🔹 Convertit les documents Firestore en objets CampaignModel
+      _availableCampaigns = snapshot.docs.map((doc) {
+        final data = doc.data();
+        return CampaignModel.fromMap({...data, 'id': doc.id});
+      }).toList();
+
+      print('✅ [adsCompHome] ${_availableCampaigns.length} campagnes ADS trouvées');
+      for (var c in _availableCampaigns) {
+        print('📣 ${c.title} (${c.campaignType}) - actif: ${c.isActive}');
+      }
+
+      // 🔹 Tri décroissant par date
+      _availableCampaigns.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      // 🔹 Met à jour le compteur de campagnes actives
+      _stats = _stats.copyWith(activeCampaigns: _availableCampaigns.length);
+
+      notifyListeners();
+    } catch (e) {
+      print('❌ [adsCompHome] Erreur: $e');
+      _setError('فشل في تحميل الحملات الإعلانية: $e');
+    } finally {
+      _setLoading(false);
+      notifyListeners();
+    }
+  }
+
 
   /// Charger les données du tableau de bord
   Future<void> loadDashboardData() async {

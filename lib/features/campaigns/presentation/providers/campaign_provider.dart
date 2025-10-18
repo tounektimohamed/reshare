@@ -90,6 +90,40 @@ Future<void> loadAdsCampaigns() async {
     notifyListeners();
   }
 }
+/// 🔥 Nouvelle fonction : Récupère uniquement les campagnes de type "ads" pour HomeScreen
+Future<void> adsCompHome() async {
+  if (_authProvider?.user == null) return;
+
+  try {
+    _setLoading(true);
+    _clearError();
+
+    // 🔹 Lecture des campagnes dans Firestore
+    final snapshot = await _firestore
+        .collection('campaigns')
+        .where('type', isEqualTo: 'ads')
+        .where('isActive', isEqualTo: true)
+        .get();
+
+    // 🔹 Conversion en modèles
+    _campaigns = snapshot.docs.map((doc) {
+      final data = doc.data();
+      return CampaignModel.fromMap({...data, 'id': doc.id});
+    }).toList();
+
+    // 🔹 Log console utile
+    print('📢 [adsCompHome] Campagnes ADS Firestore: ${_campaigns.length} trouvées');
+
+    // 🔹 Appliquer les filtres locaux (tri, statut actif…)
+    _applyFiltersAndSort();
+  } catch (e) {
+    _setError('فشل في تحميل حملات ADS: $e');
+    print('❌ Erreur Firestore adsCompHome: $e');
+  } finally {
+    _setLoading(false);
+    notifyListeners();
+  }
+}
 
   /// Charger les campagnes disponibles
   Future<void> loadCampaigns({CampaignType? type}) async {
