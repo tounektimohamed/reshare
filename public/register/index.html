@@ -423,7 +423,7 @@
             showLoading();
             
             // رابط التطبيق Flutter مع معلمات deep link
-            let appUrl = 'https://scoutapk.web.app/?route=register';
+            let appUrl = 'https://reshare-ten.vercel.app/';
             
             if (referralCode && referralCode.trim() !== '') {
                 appUrl += `&referralCode=${encodeURIComponent(referralCode)}`;
@@ -442,7 +442,7 @@
             console.log('فتح التطبيق بدون كود الإحالة');
             
             setTimeout(() => {
-                window.location.href = 'https://scoutapk.web.app/?route=register';
+                window.location.href = 'https://reshare-ten.vercel.app/';
             }, 1500);
         }
 
